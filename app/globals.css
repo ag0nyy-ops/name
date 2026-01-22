@@ -40,7 +40,7 @@ main {
 }
 
 .glass-card {
-  @apply rounded-card border border-white/10 bg-graphite/75 shadow-soft backdrop-blur-xl;
+  @apply rounded-card border border-white/10 bg-graphite/70 shadow-soft backdrop-blur-xl;
 }
 
 .light .glass-card {
@@ -52,7 +52,7 @@ main {
 }
 
 .section-subtitle {
-  @apply text-base text-mist/70 md:text-lg;
+  @apply text-sm text-mist/70 md:text-base;
 }
 
 .light .section-subtitle {
@@ -76,11 +76,31 @@ main {
 }
 
 .input-field {
-  @apply w-full rounded-full border border-white/10 bg-white/5 px-5 py-3 text-base text-glacier placeholder:text-mist/70 transition duration-200 ease-out-smooth focus:border-aurora/60 focus:ring-2 focus:ring-aurora/40 focus:outline-none;
+  @apply w-full rounded-full border border-white/10 bg-white/5 px-5 py-4 text-base text-glacier placeholder:text-mist/70 transition duration-200 ease-out-smooth focus:border-aurora/60 focus:ring-2 focus:ring-aurora/40 focus:outline-none;
 }
 
 .light .input-field {
   @apply border-gray-300 bg-white text-gray-900 placeholder:text-gray-500 focus:border-gray-500 focus:ring-gray-300;
+}
+
+.light .clear-button {
+  @apply border-gray-300 bg-white text-gray-500 hover:text-gray-900;
+}
+
+.light .warning-pill {
+  @apply border-amber-400/40 bg-amber-100 text-amber-800;
+}
+
+.light .chip {
+  @apply border-gray-200 bg-white text-gray-500;
+}
+
+.light .breakdown-card {
+  @apply border-gray-200 bg-white hover:border-gray-300;
+}
+
+.light .accordion {
+  @apply border-gray-200 bg-white;
 }
 
 .meter-shell {
@@ -105,11 +125,11 @@ main {
 }
 
 .label-text {
-  @apply text-[0.65rem] font-semibold uppercase tracking-[0.35em] text-mist/70;
+  @apply text-[0.6rem] font-semibold uppercase tracking-[0.35em] text-mist/70;
 }
 
 .name-display {
-  @apply font-mono text-3xl uppercase tracking-[0.18em] text-glacier/90 leading-tight md:text-4xl;
+  @apply text-3xl font-semibold text-glacier leading-tight md:text-4xl;
 }
 
 .light .label-text {
@@ -130,6 +150,81 @@ main {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140' viewBox='0 0 140 140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.2'/%3E%3C/svg%3E");
 }
 
+.hero-card {
+  @apply backdrop-blur-2xl;
+}
+
+.input-pill {
+  @apply pr-12 text-lg;
+}
+
+.clear-button {
+  @apply absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-white/10 bg-white/10 text-lg text-mist/80 transition hover:border-white/30 hover:text-glacier;
+}
+
+.analyzing-bar {
+  @apply h-0.5 w-full rounded-full bg-white/5 opacity-0 transition;
+}
+
+.analyzing-bar.is-active {
+  @apply opacity-100;
+  background: linear-gradient(90deg, transparent, rgba(120, 165, 255, 0.6), transparent);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite;
+}
+
+.score-display {
+  @apply text-4xl font-semibold md:text-5xl;
+}
+
+.warning-pill {
+  @apply inline-flex items-center rounded-full border border-amber-200/30 bg-amber-200/10 px-3 py-1 text-[0.6rem] font-semibold uppercase tracking-[0.25em] text-amber-100;
+}
+
+.chip {
+  @apply inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-mist/80;
+}
+
+.breakdown-card {
+  @apply flex flex-col gap-2 rounded-2xl border border-white/10 bg-white/5 p-4 transition duration-200 ease-out-smooth hover:-translate-y-1 hover:border-white/20 hover:shadow-soft;
+}
+
+.accordion {
+  @apply rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-mist/80;
+}
+
+.accordion summary {
+  @apply cursor-pointer text-[0.7rem] font-semibold uppercase tracking-[0.3em] text-glacier/80;
+}
+
+.accordion-body {
+  @apply mt-4 grid gap-6 md:grid-cols-2;
+}
+
+.accordion-body ul {
+  @apply mt-2 space-y-2 text-xs text-mist/70;
+}
+
+.accordion-title {
+  @apply text-[0.65rem] font-semibold uppercase tracking-[0.25em] text-mist/70;
+}
+
+.button-compact {
+  @apply px-4 py-2 text-[0.6rem];
+}
+
+.meter-thin {
+  @apply h-1.5;
+}
+
+.meter-ticks {
+  @apply pointer-events-none absolute inset-0;
+}
+
+.meter-ticks span {
+  @apply absolute top-1/2 h-2 w-px -translate-y-1/2 bg-white/20;
+}
+
 @keyframes fade-in {
   from {
     opacity: 0;
@@ -138,5 +233,14 @@ main {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-30%);
+  }
+  100% {
+    transform: translateX(30%);
   }
 }

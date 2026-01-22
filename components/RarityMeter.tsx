@@ -25,7 +25,7 @@ export function RarityMeter({ score, compact = false }: RarityMeterProps) {
         <span>Rarity Meter</span>
         <span>{displayScore}</span>
       </div>
-      <div className="meter-shell" aria-hidden="true">
+      <div className="meter-shell meter-thin" aria-hidden="true">
         <div className="relative h-full overflow-hidden rounded-full">
           <motion.div
             className="relative h-full rounded-full bg-gradient-to-r from-aurora/30 via-aurora/80 to-white/95"
@@ -40,14 +40,11 @@ export function RarityMeter({ score, compact = false }: RarityMeterProps) {
             <div className="absolute right-0 top-1/2 h-6 w-10 -translate-y-1/2 translate-x-1/2 bg-white/20 blur-xl" />
           </motion.div>
         </div>
-        <div
-          className="absolute top-1/2 h-3 w-[2px] -translate-y-1/2 rounded-full bg-white/70 shadow-[0_0_12px_rgba(255,255,255,0.5)]"
-          style={{ left: width }}
-        />
-        <div
-          className="absolute top-1/2 h-2 w-2 -translate-y-1/2 -translate-x-1/2 rounded-full border border-white/70 bg-obsidian shadow-[0_0_12px_rgba(255,255,255,0.4)]"
-          style={{ left: width }}
-        />
+        <div className="meter-ticks">
+          {[0, 25, 50, 75, 100].map((tick) => (
+            <span key={tick} style={{ left: `${tick}%` }} />
+          ))}
+        </div>
       </div>
       <div
         className={`grid grid-cols-5 text-[0.55rem] uppercase tracking-[0.3em] text-mist/70 ${
