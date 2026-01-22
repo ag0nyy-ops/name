@@ -515,9 +515,11 @@ export function scoreNameEngine(input: string): EngineScoreResult {
   const lastHasHyphen = Boolean(lastToken && lastToken.includes("-"));
   const lastParts = lastHasHyphen ? (lastToken ?? "").split("-").filter(Boolean) : [];
   const lastPartsNoDiacritics = lastParts.map(stripDiacritics);
-  const lastExact = lastToken
-    ? lookupFrequency(CENSUS_TABLE, lastToken, stripDiacritics(lastToken))
-    : { found: false, notes: ["missing"], percentile: 0, match: "none" };
+  const lastExact = lookupFrequency(
+    CENSUS_TABLE,
+    lastToken,
+    lastToken ? stripDiacritics(lastToken) : undefined
+  );
   const lastPartLookups = lastParts.map((part, index) =>
     lookupFrequency(CENSUS_TABLE, part, lastPartsNoDiacritics[index])
   );
@@ -599,7 +601,7 @@ export function scoreNameEngine(input: string): EngineScoreResult {
         count: firstLookup.count,
         percentile: firstLookup.found ? firstLookup.percentile : undefined,
         rarityTier: partLabelFromScore(firstScore, firstMatchStatus !== "none"),
-        notes: [specialFirst.note, ...firstLookup.notes].filter(Boolean),
+        notes: [specialFirst.note, ...firstLookup.notes].filter((note): note is string => Boolean(note)),
         flags: []
       }
     : undefined;
@@ -913,11 +915,11 @@ export function scoreNameEngine(input: string): EngineScoreResult {
 
   const penaltyPoints = penaltiesApplied.reduce((sum, entry) => sum + entry.points, 0);
   const multiplier = getConfidenceMultiplier(confidenceValue);
-  let finalScore = Math.round(baseScore * multiplier - penaltyPoints);
-  finalScore = clamp(finalScore, 0, 100);
+  let finalScoreNumber = Math.round(baseScore * multiplier - penaltyPoints);
+  finalScoreNumber = clamp(finalScoreNumber, 0, 100);
 
   if (confidenceValue < 0.35) {
-    finalScore = Math.min(finalScore, 45);
+    finalScoreNumber = Math.min(finalScoreNumber, 45);
     capsApplied.push("Confidence < 0.35 caps score at 45.");
     confidenceGateReasons.push("Confidence is too low for high rarity labels.");
     flags.push("confidence_cap");
@@ -926,14 +928,14 @@ export function scoreNameEngine(input: string): EngineScoreResult {
   const extremeAllowed =
     confidenceValue >= 0.85 &&
     ((lastPart && lastPart.rarityTier === "extreme") || Boolean(specialLast.tier) || Boolean(specialFull.tier));
-  if (finalScore >= 90 && !extremeAllowed) {
-    finalScore = 89;
+  if (finalScoreNumber >= 90 && !extremeAllowed) {
+    finalScoreNumber = 89;
     capsApplied.push("Extreme scores require top-tier last name and high confidence.");
     confidenceGateReasons.push("Extreme label blocked without top-tier last name or high confidence.");
     flags.push("extreme_cap");
   }
 
-  let label: NameLabel = finalScore === null ? "unknown" : labelFromScore(finalScore);
+  let label: NameLabel = labelFromScore(finalScoreNumber);
   if (confidenceValue < 0.35 && label !== "unknown") {
     if (label === "extreme" || label === "very rare" || label === "rare") {
       label = "uncommon";
@@ -941,6 +943,8 @@ export function scoreNameEngine(input: string): EngineScoreResult {
       flags.push("label_cap");
     }
   }
+
+  let finalScore: number | null = finalScoreNumber;
 
   if (!hasDatasetEvidence || scriptUnsupported) {
     label = "unknown";
