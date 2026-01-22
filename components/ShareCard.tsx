@@ -34,7 +34,7 @@ export function ShareCard({ score }: ShareCardProps) {
   };
 
   const cardSize = CARD_SIZES[size];
-  const scoreValue = score.overallScore ?? 0;
+  const scoreValue = score.score ?? 0;
 
   return (
     <div className="flex w-full flex-col gap-4">
@@ -93,25 +93,24 @@ export function ShareCard({ score }: ShareCardProps) {
             </div>
             <RarityMeter score={scoreValue} compact />
             <div className="grid gap-3 text-sm text-mist/80 sm:grid-cols-2">
-              {score.partScores
-                .filter((part) => part.value)
-                .map((part) => (
-                  <div
-                    key={part.label}
-                    className="rounded-2xl border border-white/10 bg-white/5 p-4"
-                  >
-                    <div className="flex items-center justify-between text-[0.6rem] uppercase tracking-[0.25em]">
-                      <span>{part.label}</span>
-                      <span>
-                        Tier {part.tier} · {part.tierLabel}
-                      </span>
-                    </div>
-                    <div className="mt-2 font-mono text-sm text-glacier">{part.value}</div>
+              {score.breakdown.map((part, index) => {
+                const label = ["first", "middle", "last", "suffix"][index] ?? "part";
+                return (
+                <div
+                  key={`${part.token}-${part.source}-${index}`}
+                  className="rounded-2xl border border-white/10 bg-white/5 p-4"
+                >
+                  <div className="flex items-center justify-between text-[0.6rem] uppercase tracking-[0.25em]">
+                    <span>{label}</span>
+                    <span>{part.rarityTier}</span>
                   </div>
-                ))}
+                  <div className="mt-2 font-mono text-sm text-glacier">{part.token || "—"}</div>
+                </div>
+              );
+              })}
             </div>
           </div>
-          <div className="relative text-xs text-mist/70">{score.estimateNote}</div>
+          <div className="relative text-xs text-mist/70">{score.estimate}</div>
         </div>
       </div>
     </div>
