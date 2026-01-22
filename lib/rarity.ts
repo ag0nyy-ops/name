@@ -102,9 +102,10 @@ export function parseName(input: string): NameParts {
   }
 
   const first = tokens[0]?.replace(/-/g, "");
-  const lastToken = tokens[lastIndex];
+  const lastToken = lastIndex > 0 ? tokens[lastIndex] : undefined;
   const last = lastToken;
-  const middleTokens = tokens.slice(1, lastIndex).map((token) => token.replace(/-/g, ""));
+  const middleTokens =
+    lastIndex > 1 ? tokens.slice(1, lastIndex).map((token) => token.replace(/-/g, "")) : [];
   const middle = middleTokens.length ? middleTokens.join(" ") : undefined;
 
   return {
@@ -225,6 +226,14 @@ function toLabel(score: number): NameScore["label"] {
   return "common";
 }
 
+function capLabel(label: NameScore["label"], maxLabel: NameScore["label"]): NameScore["label"] {
+  const order: NameScore["label"][] = ["common", "uncommon", "rare", "very rare", "extreme"];
+  const labelIndex = order.indexOf(label);
+  const maxIndex = order.indexOf(maxLabel);
+  if (labelIndex === -1 || maxIndex === -1) return label;
+  return order[Math.min(labelIndex, maxIndex)];
+}
+
 function partTierLabel(tier: number): PartScore["tierLabel"] {
   if (tier >= 9) return "extreme";
   if (tier >= 7) return "very rare";
@@ -241,11 +250,17 @@ function combineConfidence(confidences: Confidence[]): Confidence {
 
 export function scoreName(input: string): NameScore {
   const parts = parseName(input);
+  const tokens = parts.raw.split(" ").filter(Boolean);
+  const hasLast = Boolean(parts.last);
+  const isSingleToken = tokens.length === 1;
 
   const specialFirst = applySpecialCase("firstExact", parts.first);
   const specialMiddle = applySpecialCase("middleExact", parts.middle);
   const specialLast = applySpecialCase("lastExact", parts.last);
   const specialFull = applySpecialCase("fullExact", parts.raw);
+  const hasSpecialCase = Boolean(
+    specialFirst.tier || specialMiddle.tier || specialLast.tier || specialFull.tier
+  );
 
   const firstScore = baseFirstTier(parts.first);
   const middleScore = baseMiddleTier(parts.middle);
@@ -316,16 +331,50 @@ export function scoreName(input: string): NameScore {
   const confidences = partScores
     .filter((score) => score.value)
     .map((score) => score.confidence);
+  const capNotes: string[] = [];
+  let confidence = specialFull.confidence ?? combineConfidence(confidences);
+
+  if (isSingleToken) {
+    overallScore = Math.min(overallScore, 45);
+    overallTier = Math.min(overallTier, 5);
+    confidence = "low";
+    capNotes.push("Single-token inputs are capped to avoid false precision.");
+  }
+
+  if (!hasLast) {
+    overallScore = Math.min(overallScore, 60);
+    overallTier = Math.min(overallTier, 6);
+    capNotes.push("Missing last names cap the score to prevent overstating rarity.");
+  }
+
+  const allowExtreme = hasLast && (lastTier >= 8 || hasSpecialCase);
+  if (!allowExtreme && overallScore >= 80) {
+    overallScore = 79;
+    overallTier = Math.min(overallTier, 8);
+    capNotes.push("Extreme labels require a high-tier last name or special-case match.");
+  }
+
+  let label = toLabel(overallScore);
+  if (!hasLast) {
+    label = capLabel(label, "rare");
+  }
+  if (label === "extreme" && !allowExtreme) {
+    label = "very rare";
+  }
 
   return {
     parts,
     partScores,
     overallTier,
     overallScore,
-    label: toLabel(overallScore),
-    confidence: specialFull.confidence ?? combineConfidence(confidences),
-    estimateNote: specialFull.note
-      ? `${specialFull.note}. Score is a tiered estimate based on patterns, not population statistics.`
-      : "Score is a tiered estimate based on patterns, not population statistics."
+    label,
+    confidence,
+    estimateNote: [
+      specialFull.note,
+      "Score is a tiered estimate based on patterns, not population statistics.",
+      capNotes.length ? capNotes.join(" ") : ""
+    ]
+      .filter(Boolean)
+      .join(" ")
   };
 }
