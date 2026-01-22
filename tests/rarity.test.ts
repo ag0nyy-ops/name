@@ -11,7 +11,9 @@ vi.mock("../data/generated/ssa_first_names.json", () => ({
       john: { count: 50000, percentile: 50 },
       jay: { count: 2000, percentile: 1500 },
       jaymz: { count: 50, percentile: 9800 },
-      terrell: { count: 200, percentile: 9000 }
+      terrell: { count: 200, percentile: 9000 },
+      maria: { count: 8000, percentile: 600 },
+      anne: { count: 12000, percentile: 300 }
     }
   }
 }));
@@ -25,19 +27,21 @@ vi.mock("../data/generated/census_surnames.json", () => ({
     percentileScale: 10000,
     names: {
       smith: { count: 30000, percentile: 50 },
-      jones: { count: 8000, percentile: 600 }
+      jones: { count: 8000, percentile: 600 },
+      garcia: { count: 20000, percentile: 200 },
+      lopez: { count: 15000, percentile: 350 }
     }
   }
 }));
 
-import { detectSuffix, parseName, scoreJunk, scoreName } from "../lib/rarity";
+import { detectSuffix, parseName, scoreName } from "../lib/rarity";
 
 describe("detectSuffix", () => {
   it("detects roman numerals and jr/sr", () => {
     expect(detectSuffix("IV")).toBe("iv");
     expect(detectSuffix("jr")).toBe("jr");
     expect(detectSuffix("Sr")).toBe("sr");
-    expect(detectSuffix("xx")).toBe("xx");
+    expect(detectSuffix("x")).toBe("x");
     expect(detectSuffix("abc")).toBeUndefined();
   });
 });
@@ -58,45 +62,39 @@ describe("parseName", () => {
   });
 });
 
-describe("scoreJunk", () => {
-  it("blocks digits and disallowed characters", () => {
-    const result = scoreJunk("john 123");
-    expect(result.verdict).toBe("block");
-    expect(result.score).toBeGreaterThanOrEqual(85);
-  });
-
-  it("warns on repeated characters", () => {
-    const result = scoreJunk("aaaaaa");
-    expect(result.verdict).toBe("warn");
-  });
-});
-
 describe("scoreName", () => {
-  it("caps single-token inputs and marks low confidence", () => {
-    const result = scoreName("jay");
-    expect(result.overallScore).toBeLessThanOrEqual(45);
-    expect(["common", "uncommon"]).toContain(result.label);
-    expect(result.confidence).toBe("low");
-  });
-
-  it("caps missing last name inputs and avoids extreme labels", () => {
-    const result = scoreName("jaymz iv");
-    expect(result.overallScore).toBeLessThanOrEqual(60);
-    expect(["common", "uncommon", "rare"]).toContain(result.label);
-    expect(result.reasonCodes).toContain("NO_LAST_NAME");
-  });
-
-  it("keeps common names out of rare labels", () => {
+  it("scores common names with high confidence", () => {
     const result = scoreName("john smith");
     expect(["common", "uncommon"]).toContain(result.label);
+    expect(result.confidence).toBe("high");
   });
 
-  it("returns a high score for rare full names with special-case last names", () => {
-    const result = scoreName("jaymz terrell ayde-hueg iv");
-    expect(result.status).toBe("scored");
-    expect(result.overallScore).toBeGreaterThanOrEqual(70);
-    expect(["very rare", "extreme"]).toContain(result.label);
-    expect(result.partScores.find((part) => part.label === "Last")?.tier).toBe(10);
-    expect(result.reasonCodes).toContain("SPECIAL_CASE_OVERRIDE");
+  it("limits junk-heavy inputs and surfaces flags", () => {
+    const result = scoreName("skibidi skibidi-skibidi skibidi-skibidi x");
+    expect(result.score ?? 0).toBeLessThanOrEqual(45);
+    expect(result.flags.length).toBeGreaterThan(0);
+  });
+
+  it("caps confidence when last names are missing", () => {
+    const result = scoreName("aeon lucifer nightfall iii");
+    expect(result.confidence).toBe("low");
+    expect(result.score ?? 0).toBeLessThanOrEqual(45);
+  });
+
+  it("keeps hyphenated surnames reasonable", () => {
+    const result = scoreName("maria anne garcia-lopez jr");
+    expect(result.score ?? 0).toBeLessThan(90);
+    expect(["common", "uncommon", "rare", "very rare"]).toContain(result.label);
+  });
+
+  it("rejects invalid suffixes", () => {
+    const result = scoreName("john smith iix");
+    expect(result.flags).toContain("invalid_suffix");
+  });
+
+  it("applies repetition penalties", () => {
+    const result = scoreName("john john john");
+    expect(result.flags).toContain("repetition_abuse");
+    expect(result.confidence).toBe("low");
   });
 });
