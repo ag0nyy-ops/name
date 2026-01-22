@@ -17,8 +17,8 @@ const config: Config = {
         aurora: "#5fd3ff"
       },
       boxShadow: {
-        glow: "0 0 24px rgba(95, 211, 255, 0.25)",
-        soft: "0 20px 60px rgba(0, 0, 0, 0.45)"
+        glow: "0 0 28px rgba(95, 211, 255, 0.25)",
+        soft: "0 28px 70px rgba(0, 0, 0, 0.55)"
       },
       borderRadius: {
         card: "22px"
