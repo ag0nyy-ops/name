@@ -31,33 +31,48 @@ def download(url: str, dest: pathlib.Path) -> None:
 
 
 def build_ssa() -> dict:
-    with tempfile.TemporaryDirectory() as tmpdir:
-        tmp_path = pathlib.Path(tmpdir)
-        zip_path = tmp_path / "ssa_names.zip"
-        download(SSA_URL, zip_path)
+    # prefer local extracted folder: ROOT/names/yob*.txt
+    local_dir = ROOT / "names"
 
-        counts: dict[str, int] = {}
-        with zipfile.ZipFile(zip_path) as archive:
-            for name in archive.namelist():
-                if not name.startswith("yob") or not name.endswith(".txt"):
-                    continue
-                with archive.open(name) as file:
-                    for raw_line in file.read().decode("utf-8").splitlines():
-                        if not raw_line:
-                            continue
-                        parts = raw_line.split(",")
-                        if len(parts) < 3:
-                            continue
-                        raw_name, _, count = parts
-                        key = raw_name.strip().lower()
-                        if not key:
-                            continue
-                        counts[key] = counts.get(key, 0) + int(count)
+    counts: dict[str, int] = {}
 
-        return build_table(
-            counts,
-            source="SSA baby names (1880-latest), aggregated across years",
-        )
+    def ingest_lines(lines: list[str]) -> None:
+        for raw_line in lines:
+            if not raw_line:
+                continue
+            parts = raw_line.split(",")
+            if len(parts) < 3:
+                continue
+            raw_name, _, count = parts
+            key = raw_name.strip().lower()
+            if not key:
+                continue
+            counts[key] = counts.get(key, 0) + int(count)
+
+    if local_dir.exists():
+        print(f"Using local SSA directory: {local_dir}")
+        yob_files = sorted(local_dir.glob("yob*.txt"))
+        if not yob_files:
+            raise RuntimeError(f"SSA directory exists but no yob*.txt files found in {local_dir}")
+        for path in yob_files:
+            ingest_lines(path.read_text(encoding="utf-8").splitlines())
+    else:
+        # last resort: download (may 403)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = pathlib.Path(tmpdir)
+            zip_path = tmp_path / "ssa_names.zip"
+            download(SSA_URL, zip_path)
+            with zipfile.ZipFile(zip_path) as archive:
+                for name in archive.namelist():
+                    if not name.startswith("yob") or not name.endswith(".txt"):
+                        continue
+                    with archive.open(name) as file:
+                        ingest_lines(file.read().decode("utf-8").splitlines())
+
+    return build_table(
+        counts,
+        source="SSA baby names (1880-latest), aggregated across years",
+    )
 
 
 def build_census() -> dict:
