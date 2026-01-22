@@ -34,6 +34,7 @@ export function ShareCard({ score }: ShareCardProps) {
   };
 
   const cardSize = CARD_SIZES[size];
+  const scoreValue = score.overallScore ?? 0;
 
   return (
     <div className="flex w-full flex-col gap-4">
@@ -48,7 +49,7 @@ export function ShareCard({ score }: ShareCardProps) {
               className={`rounded-full border px-4 py-2 text-[0.65rem] uppercase tracking-[0.25em] transition ${
                 size === key
                   ? "border-aurora/60 bg-aurora/10 text-glacier"
-                  : "border-white/12 text-mist/70 hover:border-white/30 hover:text-mist"
+                  : "border-white/10 text-mist/70 hover:border-white/30 hover:text-mist"
               }`}
             >
               {value.label}
@@ -90,7 +91,7 @@ export function ShareCard({ score }: ShareCardProps) {
               </p>
               <p className="mt-3 text-sm text-mist/80">Confidence: {score.confidence}</p>
             </div>
-            <RarityMeter score={score.overallScore} compact />
+            <RarityMeter score={scoreValue} compact />
             <div className="grid gap-3 text-sm text-mist/80 sm:grid-cols-2">
               {score.partScores
                 .filter((part) => part.value)
