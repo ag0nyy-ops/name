@@ -86,7 +86,7 @@ export function ShareCard({ score }: ShareCardProps) {
           <div className="relative flex flex-col gap-6">
             <div>
               <p className="font-mono text-4xl uppercase tracking-[0.18em] text-glacier leading-tight">
-                {score.parts.raw || "Your Name"}
+                {score.parts.display || "Your Name"}
               </p>
               <p className="mt-3 text-sm text-mist/80">Confidence: {score.confidence}</p>
             </div>
