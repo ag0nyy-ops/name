@@ -2,7 +2,7 @@ export default function PrivacyPage() {
   return (
     <section className="glass-card flex flex-col gap-6 p-8 md:p-12">
       <div className="flex flex-col gap-3">
-        <p className="text-xs font-semibold uppercase tracking-[0.4em] text-mist">Privacy</p>
+        <p className="label-text">Privacy</p>
         <h1 className="section-title">Private by design.</h1>
         <p className="section-subtitle">
           Name Rarity runs entirely in your browser. We do not store, log, or transmit your input.
