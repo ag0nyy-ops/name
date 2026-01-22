@@ -1,0 +1,8 @@
+{
+  "source": "US Census 2010 surnames (ranked list, >=100 occurrences). Run scripts/build_data.py to populate from official sources.",
+  "generatedAt": null,
+  "totalNames": 0,
+  "totalCount": 0,
+  "percentileScale": 10000,
+  "names": {}
+}

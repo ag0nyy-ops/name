@@ -33,8 +33,8 @@ export function NameAnalyzer() {
             Find the rarity signature of any name.
           </h1>
           <p className="section-subtitle">
-            Transparent, tiered scoring based on structural patterns — no tracking, no lookups, no
-            personal data.
+            Transparent, tiered scoring built on US SSA baby names and US Census surnames — no
+            tracking, no personal lookups.
           </p>
         </div>
         <div className="flex flex-col gap-4 md:flex-row md:items-center">
@@ -80,7 +80,7 @@ export function NameAnalyzer() {
                 <div className="flex flex-wrap items-end justify-between gap-4">
                   <div>
                     <p className="label-text text-mist/80">Name</p>
-                    <p className="name-display">{result.parts.raw}</p>
+                    <p className="name-display">{result.parts.display}</p>
                   </div>
                   <div className="text-right">
                     <p className="label-text text-mist/80">Rarity score</p>
