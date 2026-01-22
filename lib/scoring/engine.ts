@@ -138,15 +138,18 @@ const confidencePenaltyByFlag: Record<string, number> = {
   repetition_abuse: 0.2,
   gibberish_token: 0.25,
   hyphen_abuse: 0.15,
+  hyphen_in_given_name: 0.12,
   suspicious_length: 0.1,
   unsupported_characters: 0.2,
   digits_present: 0.2
 };
 
+const RARITY_GAMMA = 0.55;
+
 const rarityWeights = {
   last: 0.55,
   first: 0.3,
-  middle: 0.1
+  middle: 0.05
 };
 
 const coverageWeights = {
@@ -319,7 +322,9 @@ function lookupFrequency(table: FrequencyTable, value?: string, valueNoDiacritic
 }
 
 function toRarityScore(percentile: number): number {
-  return Math.round(Math.min(100, Math.max(0, percentile * 100)));
+  const normalized = Math.min(1, Math.max(0, percentile));
+  const stretched = Math.pow(normalized, RARITY_GAMMA);
+  return Math.round(Math.min(100, Math.max(0, stretched * 100)));
 }
 
 function labelFromScore(score: number): NameLabel {
@@ -515,6 +520,10 @@ export function scoreNameEngine(input: string): EngineScoreResult {
   const lastHasHyphen = Boolean(lastToken && lastToken.includes("-"));
   const lastParts = lastHasHyphen ? (lastToken ?? "").split("-").filter(Boolean) : [];
   const lastPartsNoDiacritics = lastParts.map(stripDiacritics);
+  const lastCollapsedToken = lastHasHyphen ? lastToken?.replace(/-/g, "") : undefined;
+  const lastCollapsedLookup: LookupResult = lastCollapsedToken
+    ? lookupFrequency(CENSUS_TABLE, lastCollapsedToken, stripDiacritics(lastCollapsedToken))
+    : { found: false, match: "none", percentile: 0, notes: ["missing"], count: undefined };
   const lastExact = lookupFrequency(
     CENSUS_TABLE,
     lastToken,
@@ -548,21 +557,34 @@ export function scoreNameEngine(input: string): EngineScoreResult {
     lastNotes.push(specialLast.note ?? "special-case override");
   } else if (lastHasHyphen) {
     const foundParts = lastPartLookups.filter((lookup) => lookup.found);
-    if (foundParts.length > 0) {
-      lastPercentile =
-        foundParts.reduce((sum, lookup) => sum + lookup.percentile, 0) / foundParts.length;
-      lastCount = foundParts[0]?.count;
+    const partPercentile =
+      foundParts.length > 0
+        ? foundParts.reduce((sum, lookup) => sum + lookup.percentile, 0) / foundParts.length
+        : undefined;
+    const collapsedPercentile = lastCollapsedLookup.found ? lastCollapsedLookup.percentile : undefined;
+    const percentiles = [partPercentile, collapsedPercentile].filter(
+      (value): value is number => value !== undefined
+    );
+    if (percentiles.length > 0) {
+      lastPercentile = Math.min(...percentiles);
+      lastCount = lastCollapsedLookup.found ? lastCollapsedLookup.count : foundParts[0]?.count;
     }
     if (foundParts.length === lastPartLookups.length && foundParts.length > 0) {
       lastMatchStatus = "match";
       lastSource = "census";
       lastNotes.push("hyphen both parts found");
-    } else if (foundParts.length === 1) {
+    } else if (foundParts.length > 0 || lastCollapsedLookup.found) {
       lastMatchStatus = "partial";
       lastSource = "census";
       lastNotes.push("partial_hyphen_match");
     } else {
       lastNotes.push("hyphen surname not found");
+    }
+    if (lastCollapsedLookup.found) {
+      lastNotes.push("hyphen collapsed match");
+      if (collapsedPercentile !== undefined && partPercentile !== undefined && partPercentile > collapsedPercentile) {
+        lastNotes.push("hyphen_score_capped_by_collapsed");
+      }
     }
   } else if (lastExact.found) {
     lastMatchStatus = lastExact.match;
@@ -766,6 +788,18 @@ export function scoreNameEngine(input: string): EngineScoreResult {
     });
   }
 
+  const givenNameHyphenTokens = [validated.parts.first, ...middleTokens].filter(
+    (token): token is string => Boolean(token)
+  ).filter((token) => token.includes("-"));
+  if (givenNameHyphenTokens.length > 0) {
+    flags.push("hyphen_in_given_name");
+    penaltiesApplied.push({
+      id: "hyphen_in_given_name",
+      points: 20,
+      detail: `Hyphen detected in given name token(s) (${givenNameHyphenTokens.join(", ")}).`
+    });
+  }
+
   const hyphenTriggers: string[] = [];
   if (tokensForAnalysis.some((token) => (token.match(/-/g) ?? []).length > 1)) {
     hyphenTriggers.push("multiple_hyphens_in_token");
@@ -881,6 +915,18 @@ export function scoreNameEngine(input: string): EngineScoreResult {
     datasetNotes.push("Special-case dataset override applied.");
   }
 
+  const hasSpecialOverride = Boolean(specialLast.tier || specialFull.tier);
+  if (lastMatchStatus === "none" && !hasSpecialOverride) {
+    confidenceValue = Math.min(confidenceValue, 0.55);
+    confidenceGateReasons.push("Unmatched last name caps confidence.");
+    flags.push("last_name_unmatched");
+  }
+  if (!validated.parts.first || !validated.parts.last) {
+    confidenceValue = Math.min(confidenceValue, 0.35);
+    confidenceGateReasons.push("Missing first or last name caps confidence.");
+    flags.push("missing_core_name");
+  }
+
   confidenceValue = clamp(confidenceValue, 0, 1);
 
   const confidenceLabel = confidenceLabelFromValue(confidenceValue);
@@ -895,9 +941,16 @@ export function scoreNameEngine(input: string): EngineScoreResult {
     confidenceNotes.push("Unsupported characters reduce confidence.");
   }
 
+  const middleScoreEligible = lastMatchStatus !== "none" || tokensForAnalysis.length < 3;
+  if (!middleScoreEligible && middleScore > 0) {
+    confidenceGateReasons.push("Middle-name evidence de-emphasized because last name is not matched.");
+  }
+
   const weightedScores: Array<{ score: number; weight: number }> = [];
   if (firstScore > 0) weightedScores.push({ score: firstScore, weight: rarityWeights.first });
-  if (middleScore > 0) weightedScores.push({ score: middleScore, weight: rarityWeights.middle });
+  if (middleScore > 0 && middleScoreEligible) {
+    weightedScores.push({ score: middleScore, weight: rarityWeights.middle });
+  }
   if (lastScore > 0) weightedScores.push({ score: lastScore, weight: rarityWeights.last });
   const weightSum = weightedScores.reduce((sum, entry) => sum + entry.weight, 0);
   let baseScore = weightSum
@@ -917,6 +970,13 @@ export function scoreNameEngine(input: string): EngineScoreResult {
   const multiplier = getConfidenceMultiplier(confidenceValue);
   let finalScoreNumber = Math.round(baseScore * multiplier - penaltyPoints);
   finalScoreNumber = clamp(finalScoreNumber, 0, 100);
+
+  if (lastMatchStatus === "none" && !hasSpecialOverride) {
+    finalScoreNumber = Math.min(finalScoreNumber, 45);
+    capsApplied.push("Unmatched last name caps score at 45.");
+    confidenceGateReasons.push("Last name missing or unmatched blocks rare labels.");
+    flags.push("last_name_score_cap");
+  }
 
   if (confidenceValue < 0.35) {
     finalScoreNumber = Math.min(finalScoreNumber, 45);
@@ -940,6 +1000,13 @@ export function scoreNameEngine(input: string): EngineScoreResult {
     if (label === "extreme" || label === "very rare" || label === "rare") {
       label = "uncommon";
       confidenceGateReasons.push("Label capped to uncommon due to low confidence.");
+      flags.push("label_cap");
+    }
+  }
+  if (lastMatchStatus === "none" && !hasSpecialOverride && label !== "unknown") {
+    if (label === "extreme" || label === "very rare" || label === "rare") {
+      label = "uncommon";
+      confidenceGateReasons.push("Label capped to uncommon due to unmatched last name.");
       flags.push("label_cap");
     }
   }

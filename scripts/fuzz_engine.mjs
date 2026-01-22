@@ -88,6 +88,10 @@ function randomWord(r, minLen = 3, maxLen = 10) {
   return out;
 }
 
+function unknownToken(r) {
+  return consonantMash(r, randInt(r, 7, 12));
+}
+
 function pick(r, arr) {
   return arr[Math.floor(r() * arr.length)];
 }
@@ -222,53 +226,53 @@ function addDiacriticVariant(token) {
 
 function mutateName(r, base) {
   const tokens = splitTokens(base);
-  if (tokens.length === 0) return base;
+  if (tokens.length === 0) return { mutated: base, mutationType: "noop" };
 
   const kind = randInt(r, 1, 10);
 
   // 1) add junk token
   if (kind === 1) {
     tokens.push(pick(r, WEIRD));
-    return joinTokens(tokens);
+    return { mutated: joinTokens(tokens), mutationType: "append_weird_token" };
   }
 
   // 2) repeat a random token 3x
   if (kind === 2) {
     const t = tokens[randInt(r, 0, tokens.length - 1)];
-    return joinTokens([t, t, t, ...tokens.slice(1)]);
+    return { mutated: joinTokens([t, t, t, ...tokens.slice(1)]), mutationType: "repeat_token" };
   }
 
   // 3) append bad roman suffix
   if (kind === 3) {
     tokens.push(pick(r, ROMAN_BAD));
-    return joinTokens(tokens);
+    return { mutated: joinTokens(tokens), mutationType: "append_bad_suffix" };
   }
 
   // 4) append ok suffix
   if (kind === 4) {
     tokens.push(pick(r, ROMAN_OK));
-    return joinTokens(tokens);
+    return { mutated: joinTokens(tokens), mutationType: "append_good_suffix" };
   }
 
   // 5) leetspeak one token
   if (kind === 5) {
     const idx = randInt(r, 0, tokens.length - 1);
     tokens[idx] = leetify(tokens[idx]);
-    return joinTokens(tokens);
+    return { mutated: joinTokens(tokens), mutationType: "leetify_token" };
   }
 
   // 6) flip one char
   if (kind === 6) {
     const idx = randInt(r, 0, tokens.length - 1);
     tokens[idx] = flipOneChar(r, tokens[idx]);
-    return joinTokens(tokens);
+    return { mutated: joinTokens(tokens), mutationType: "flip_char" };
   }
 
   // 7) inject hyphen into last token
   if (kind === 7) {
     const idx = tokens.length - 1;
     tokens[idx] = injectHyphen(r, tokens[idx]);
-    return joinTokens(tokens);
+    return { mutated: joinTokens(tokens), mutationType: "inject_hyphen" };
   }
 
   // 8) hyphen abuse: add multiple hyphens to last
@@ -276,7 +280,7 @@ function mutateName(r, base) {
     const idx = tokens.length - 1;
     const t = tokens[idx];
     tokens[idx] = `${t}-${pick(r, WEIRD)}-${pick(r, WEIRD)}`;
-    return joinTokens(tokens);
+    return { mutated: joinTokens(tokens), mutationType: "hyphen_abuse" };
   }
 
   // 9) swap first/last token order
@@ -286,16 +290,16 @@ function mutateName(r, base) {
       const a = swapped[0];
       swapped[0] = swapped[swapped.length - 1];
       swapped[swapped.length - 1] = a;
-      return joinTokens(swapped);
+      return { mutated: joinTokens(swapped), mutationType: "swap_tokens" };
     }
-    return base;
+    return { mutated: base, mutationType: "noop" };
   }
 
   // 10) diacritic variant on one token
   {
     const idx = randInt(r, 0, tokens.length - 1);
     tokens[idx] = addDiacriticVariant(tokens[idx]);
-    return joinTokens(tokens);
+    return { mutated: joinTokens(tokens), mutationType: "diacritic_variant" };
   }
 }
 
@@ -435,6 +439,22 @@ function summarize(res) {
   };
 }
 
+function detailedResult(res) {
+  if (!res) return null;
+  return {
+    score: getScore(res),
+    label: getLabel(res),
+    confidenceValue: getConfidence(res),
+    flags: getFlags(res),
+    reasons: res.reasons ?? [],
+    parts: res.parts ?? null,
+    breakdown: res.breakdown ?? null,
+    penaltiesApplied: res.penaltiesApplied ?? [],
+    capsApplied: res.capsApplied ?? [],
+    confidenceNotes: res.confidenceNotes ?? [],
+  };
+}
+
 const RUNS = Number(process.env.RUNS || 25000);
 const SEED = process.env.SEED || "jay-fuzz";
 const PRINT_LIMIT = Number(process.env.PRINT_LIMIT || 40);
@@ -468,21 +488,93 @@ async function safeScore(input) {
   }
 }
 
+function recordSuspicious(entry) {
+  suspicious.push({
+    ...entry,
+    baseDetails: detailedResult(entry.baseRes),
+    mutDetails: detailedResult(entry.mutRes),
+  });
+}
+
 for (const base of SEED_CORPUS) {
   const baseRes = await safeScore(base);
   const baseScore = getScore(baseRes);
   const baseLabel = getLabel(baseRes);
   const baseConf = getConfidence(baseRes);
+  const baseTokens = splitTokens(base);
+
+  const directedMutations = [];
+  if (baseTokens.length === 2) {
+    const unknown = unknownToken(r);
+    directedMutations.push({
+      mutated: joinTokens([...baseTokens, unknown]),
+      mutationType: "append_unknown_last",
+      mutationMeta: { unknown },
+    });
+    const movedUnknown = unknownToken(r);
+    directedMutations.push({
+      mutated: joinTokens([baseTokens[0], baseTokens[1], movedUnknown]),
+      mutationType: "move_last_to_middle",
+      mutationMeta: { unknown: movedUnknown },
+    });
+  }
+  if (baseTokens.length >= 2 && COMMON_LAST.includes(baseTokens[baseTokens.length - 1])) {
+    const last = baseTokens[baseTokens.length - 1];
+    directedMutations.push({
+      mutated: joinTokens([...baseTokens.slice(0, -1), injectHyphen(r, last)]),
+      mutationType: "hyphen_split_last",
+      mutationMeta: { last },
+    });
+  }
+
+  for (const mutation of directedMutations) {
+    const mutRes = await safeScore(mutation.mutated);
+    const s1 = getScore(mutRes);
+    const l1 = getLabel(mutRes);
+    const c1 = getConfidence(mutRes);
+    const f1 = getFlags(mutRes);
+    const reasons = [];
+    const scoreUp = s1 != null && baseScore != null ? s1 - baseScore : 0;
+    const labelUp = labelRank(l1) - labelRank(baseLabel);
+
+    if (mutation.mutationType === "append_unknown_last" || mutation.mutationType === "move_last_to_middle") {
+      if (scoreUp > 0) reasons.push("score_increased_after_unknown_append");
+      if (labelUp > 0) reasons.push("label_increased_after_unknown_append");
+      if (c1 != null && baseConf != null && c1 > baseConf) reasons.push("confidence_increased_after_unknown_append");
+    }
+    if (mutation.mutationType === "hyphen_split_last") {
+      if (scoreUp > 0) reasons.push("score_increased_after_hyphen_insert");
+      if (labelUp > 0) reasons.push("label_increased_after_hyphen_insert");
+    }
+    if (smellsLikeJunk(mutation.mutated).any && (labelRank(l1) >= 3 || (s1 ?? 0) >= 80) && f1.length === 0) {
+      reasons.push("junk_unflagged_high");
+    }
+    if (reasons.length) {
+      recordSuspicious({
+        base,
+        mutated: mutation.mutated,
+        baseRes,
+        mutRes,
+        baseSummary: summarize(baseRes),
+        mutSummary: summarize(mutRes),
+        scoreDelta: scoreUp,
+        labelDelta: labelUp,
+        reasons,
+        mutationType: mutation.mutationType,
+        mutationMeta: mutation.mutationMeta,
+      });
+    }
+  }
 
   for (let k = 0; k < MUTATIONS_PER_SEED; k++) {
-    let mutated;
+    let mutation;
     try {
-      mutated = mutateName(r, base);
+      mutation = mutateName(r, base);
     } catch (e) {
       crashed++;
       continue;
     }
-    const mutRes = await safeScore(mutated);
+    const mutRes = await safeScore(mutation.mutated);
 
     const s0 = baseScore;
     const s1 = getScore(mutRes);
@@ -493,7 +585,7 @@ for (const base of SEED_CORPUS) {
     const f1 = getFlags(mutRes);
 
     // monotonicity: adding junk should usually not raise score
-    const likelyAddedJunk = mutated.length > base.length || /-/.test(mutated) || /(\b\w+\b)\s+\1\s+\1/i.test(mutated);
+    const likelyAddedJunk = mutation.mutated.length > base.length || /-/.test(mutation.mutated) || /(\b\w+\b)\s+\1\s+\1/i.test(mutation.mutated);
 
     if (s0 != null && s1 != null) {
       const scoreUp = s1 - s0;
@@ -504,17 +596,22 @@ for (const base of SEED_CORPUS) {
       if (likelyAddedJunk && scoreUp >= 8) reasons.push("score_increased_after_mutation");
       if (likelyAddedJunk && labelUp >= 1) reasons.push("label_increased_after_mutation");
       if (c1 != null && s1 >= 70 && c1 < 0.7) reasons.push("high_score_low_confidence");
-      if (smellsLikeJunk(mutated).any && (labelRank(l1) >= 3 || s1 >= 80) && f1.length === 0) reasons.push("junk_unflagged_high");
+      if (smellsLikeJunk(mutation.mutated).any && (labelRank(l1) >= 3 || s1 >= 80) && f1.length === 0) {
+        reasons.push("junk_unflagged_high");
+      }
 
       if (reasons.length) {
-        suspicious.push({
+        recordSuspicious({
           base,
-          mutated,
+          mutated: mutation.mutated,
+          mutationType: mutation.mutationType,
           baseSummary: summarize(baseRes),
           mutSummary: summarize(mutRes),
           scoreDelta: scoreUp,
           labelDelta: labelUp,
           reasons,
+          baseRes,
+          mutRes,
         });
       }
     }
@@ -554,10 +651,15 @@ if (suspicious.length) {
     const it = top[i];
     console.log("\n--- suspicious ---");
     console.log("reasons:", it.reasons.join(", "));
+    if (it.mutationType) {
+      console.log("mutation:", it.mutationType, it.mutationMeta ?? "");
+    }
     console.log("base:", it.base);
-    console.log("base:", it.baseSummary);
+    console.log("base summary:", it.baseSummary);
+    console.log("base details:", it.baseDetails);
     console.log("mut :", it.mutated);
-    console.log("mut :", it.mutSummary);
+    console.log("mut summary:", it.mutSummary);
+    console.log("mut details:", it.mutDetails);
     console.log("delta:", { score: it.scoreDelta, label: it.labelDelta });
   }
 }
