@@ -1,0 +1,106 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  @apply bg-obsidian text-glacier antialiased;
+  min-height: 100vh;
+  font-family: theme("fontFamily.sans");
+}
+
+body.light {
+  color-scheme: light;
+  @apply bg-white text-gray-900;
+}
+
+main {
+  @apply relative z-10;
+}
+
+.app-shell {
+  @apply relative overflow-hidden;
+}
+
+.app-shell::before {
+  content: "";
+  @apply pointer-events-none absolute inset-0 opacity-80;
+  background: radial-gradient(circle at top, rgba(95, 211, 255, 0.08), transparent 55%),
+    radial-gradient(circle at 20% 30%, rgba(255, 255, 255, 0.05), transparent 45%);
+}
+
+.app-shell::after {
+  content: "";
+  @apply pointer-events-none absolute inset-0 opacity-30;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)' opacity='0.25'/%3E%3C/svg%3E");
+}
+
+.glass-card {
+  @apply rounded-card border border-white/10 bg-graphite/70 shadow-soft backdrop-blur;
+}
+
+.light .glass-card {
+  @apply border-black/10 bg-white/70 shadow-lg;
+}
+
+.section-title {
+  @apply text-3xl font-semibold tracking-tight md:text-4xl;
+}
+
+.section-subtitle {
+  @apply text-base text-mist md:text-lg;
+}
+
+.light .section-subtitle {
+  @apply text-gray-600;
+}
+
+.button-primary {
+  @apply inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/10 px-6 py-3 text-sm font-semibold uppercase tracking-[0.2em] text-glacier transition duration-200 ease-out-smooth hover:border-white/30 hover:bg-white/20 hover:shadow-glow active:scale-[0.98];
+}
+
+.light .button-primary {
+  @apply border-gray-300 bg-white text-gray-900 hover:bg-gray-100;
+}
+
+.theme-toggle {
+  @apply rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-glacier transition duration-200 ease-out-smooth hover:border-white/30 hover:bg-white/10;
+}
+
+.light .theme-toggle {
+  @apply border-gray-300 bg-white text-gray-900 hover:bg-gray-100;
+}
+
+.input-field {
+  @apply w-full rounded-full border border-white/15 bg-white/5 px-5 py-3 text-base text-glacier placeholder:text-mist transition duration-200 ease-out-smooth focus:border-aurora/60 focus:ring-2 focus:ring-aurora/40 focus:outline-none;
+}
+
+.light .input-field {
+  @apply border-gray-300 bg-white text-gray-900 placeholder:text-gray-500 focus:border-gray-500 focus:ring-gray-300;
+}
+
+.meter-shell {
+  @apply h-2 w-full overflow-hidden rounded-full border border-white/10 bg-white/5;
+}
+
+.light .meter-shell {
+  @apply border-black/10 bg-black/5;
+}
+
+.fade-in {
+  animation: fade-in 0.25s ease-out;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
