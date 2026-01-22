@@ -1,0 +1,8 @@
+{
+  "source": "SSA baby names (1880-latest). Run scripts/build_data.py to populate from official sources.",
+  "generatedAt": null,
+  "totalNames": 0,
+  "totalCount": 0,
+  "percentileScale": 10000,
+  "names": {}
+}
