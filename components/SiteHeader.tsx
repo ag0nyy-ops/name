@@ -6,7 +6,7 @@ export function SiteHeader() {
     <header className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 pt-8 md:px-10">
       <div className="flex items-center gap-3">
         <div className="h-3 w-3 rounded-full bg-aurora/80 shadow-glow" />
-        <span className="label-text">name rarity</span>
+        <span className="label-text">whatsmynamerarity</span>
       </div>
       <nav className="flex items-center gap-6 text-xs font-semibold uppercase tracking-[0.2em] text-mist">
         <Link className="transition hover:text-glacier" href="/">
@@ -14,6 +14,9 @@ export function SiteHeader() {
         </Link>
         <Link className="transition hover:text-glacier" href="/methodology">
           Methodology
+        </Link>
+        <Link className="transition hover:text-glacier" href="/sources">
+          Sources
         </Link>
         <Link className="transition hover:text-glacier" href="/privacy">
           Privacy
