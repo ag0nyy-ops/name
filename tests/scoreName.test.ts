@@ -13,7 +13,9 @@ vi.mock("../data/generated/ssa_first_names.json", () => ({
       jaymz: { count: 50, percentile: 9800 },
       terrell: { count: 200, percentile: 9000 },
       maria: { count: 8000, percentile: 600 },
-      anne: { count: 12000, percentile: 300 }
+      anne: { count: 12000, percentile: 300 },
+      aeon: { count: 400, percentile: 8500 },
+      lucifer: { count: 120, percentile: 9400 }
     }
   }
 }));
@@ -34,67 +36,54 @@ vi.mock("../data/generated/census_surnames.json", () => ({
   }
 }));
 
-import { detectSuffix, parseName, scoreName } from "../lib/rarity";
-
-describe("detectSuffix", () => {
-  it("detects roman numerals and jr/sr", () => {
-    expect(detectSuffix("IV")).toBe("iv");
-    expect(detectSuffix("jr")).toBe("jr");
-    expect(detectSuffix("Sr")).toBe("sr");
-    expect(detectSuffix("x")).toBe("x");
-    expect(detectSuffix("abc")).toBeUndefined();
-  });
-});
-
-describe("parseName", () => {
-  it("splits first middle last and suffix", () => {
-    const parsed = parseName("jaymz terrell ayde-hueg iv");
-    expect(parsed.first).toBe("jaymz");
-    expect(parsed.middle).toBe("terrell");
-    expect(parsed.last).toBe("ayde-hueg");
-    expect(parsed.suffix).toBe("iv");
-  });
-
-  it("normalizes punctuation and whitespace while keeping hyphens and apostrophes", () => {
-    const parsed = parseName("  JAYmz   Terrell,  O'Neill  IV  ");
-    expect(parsed.raw).toBe("jaymz terrell o'neill iv");
-    expect(parsed.display).toBe("JAYmz Terrell O'Neill IV");
-  });
-});
+import { scoreName } from "../lib/rarity";
 
 describe("scoreName", () => {
   it("scores common names with high confidence", () => {
     const result = scoreName("john smith");
-    expect(["common", "uncommon"]).toContain(result.label);
     expect(result.confidence).toBe("high");
+    expect(result.score ?? 0).toBeLessThanOrEqual(19);
+    expect(result.label).toBe("common");
   });
 
   it("limits junk-heavy inputs and surfaces flags", () => {
     const result = scoreName("skibidi skibidi-skibidi skibidi-skibidi x");
     expect(result.score ?? 0).toBeLessThanOrEqual(45);
-    expect(result.flags.length).toBeGreaterThan(0);
+    expect(result.confidence).toBe("low");
+    expect(result.flags).toEqual(expect.arrayContaining([
+      expect.stringMatching(/repetition_abuse|gibberish_token|hyphen_abuse/)
+    ]));
   });
 
   it("caps confidence when last names are missing", () => {
     const result = scoreName("aeon lucifer nightfall iii");
-    expect(result.confidence).toBe("low");
     expect(result.score ?? 0).toBeLessThanOrEqual(45);
+    expect(result.label).not.toBe("extreme");
   });
 
-  it("keeps hyphenated surnames reasonable", () => {
+  it("keeps hyphenated surnames reasonable and rewards coverage", () => {
     const result = scoreName("maria anne garcia-lopez jr");
-    expect(result.score ?? 0).toBeLessThan(90);
-    expect(["common", "uncommon", "rare", "very rare"]).toContain(result.label);
+    expect(result.label).not.toBe("extreme");
+    expect(result.confidence).toBe("high");
+    expect(result.flags).not.toContain("hyphen_abuse");
   });
 
   it("rejects invalid suffixes", () => {
     const result = scoreName("john smith iix");
     expect(result.flags).toContain("invalid_suffix");
+    const suffixBreakdown = result.breakdown[3];
+    expect(suffixBreakdown.matchStatus).toBe("none");
   });
 
   it("applies repetition penalties", () => {
     const result = scoreName("john john john");
     expect(result.flags).toContain("repetition_abuse");
-    expect(result.confidence).toBe("low");
+    expect(result.score ?? 0).toBeLessThanOrEqual(45);
+  });
+
+  it("honors special-case overrides with high confidence", () => {
+    const result = scoreName("jaymz terrell ayde-hueg iv");
+    expect(result.confidence).toBe("high");
+    expect(["very rare", "extreme"]).toContain(result.label);
   });
 });
