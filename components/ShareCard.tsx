@@ -38,19 +38,17 @@ export function ShareCard({ score }: ShareCardProps) {
   return (
     <div className="flex w-full flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="text-sm font-semibold uppercase tracking-[0.2em] text-mist">
-          Share card
-        </div>
+        <div className="label-text">Share card</div>
         <div className="flex items-center gap-2">
           {Object.entries(CARD_SIZES).map(([key, value]) => (
             <button
               key={key}
               type="button"
               onClick={() => setSize(key as keyof typeof CARD_SIZES)}
-              className={`rounded-full border px-4 py-2 text-xs uppercase tracking-[0.2em] transition ${
+              className={`rounded-full border px-4 py-2 text-[0.65rem] uppercase tracking-[0.25em] transition ${
                 size === key
                   ? "border-aurora/60 bg-aurora/10 text-glacier"
-                  : "border-white/10 text-mist hover:border-white/30"
+                  : "border-white/12 text-mist/70 hover:border-white/30 hover:text-mist"
               }`}
             >
               {value.label}
@@ -70,27 +68,38 @@ export function ShareCard({ score }: ShareCardProps) {
       <div className="w-full overflow-auto">
         <div
           ref={cardRef}
-          className="flex flex-col justify-between rounded-card border border-white/10 bg-[#0b0b0f] p-10 text-glacier"
+          className={`share-card relative flex flex-col justify-between overflow-hidden rounded-card border border-white/10 text-glacier ${
+            size === "wide" ? "p-10" : "p-12"
+          }`}
           style={{ width: cardSize.width, height: cardSize.height }}
         >
-          <div className="flex items-center justify-between">
-            <span className="text-xs uppercase tracking-[0.4em] text-mist">Name Rarity</span>
-            <span className="text-xs uppercase tracking-[0.4em] text-mist">{score.label}</span>
+          <div className="share-card-noise pointer-events-none absolute inset-0 opacity-40" />
+          <div className="pointer-events-none absolute inset-0 bg-white/5 opacity-30" />
+          <div className="relative flex items-center justify-between">
+            <span className="text-[0.65rem] font-semibold uppercase tracking-[0.4em] text-mist/80">
+              Name Rarity
+            </span>
+            <span className="text-[0.65rem] font-semibold uppercase tracking-[0.4em] text-mist/80">
+              {score.label}
+            </span>
           </div>
-          <div className="flex flex-col gap-6">
+          <div className="relative flex flex-col gap-6">
             <div>
-              <p className="font-mono text-4xl uppercase tracking-[0.2em]">
+              <p className="font-mono text-4xl uppercase tracking-[0.18em] text-glacier leading-tight">
                 {score.parts.raw || "Your Name"}
               </p>
-              <p className="mt-3 text-sm text-mist">Confidence: {score.confidence}</p>
+              <p className="mt-3 text-sm text-mist/80">Confidence: {score.confidence}</p>
             </div>
-            <RarityMeter score={score.overallScore} />
-            <div className="grid gap-3 text-sm text-mist sm:grid-cols-2">
+            <RarityMeter score={score.overallScore} compact />
+            <div className="grid gap-3 text-sm text-mist/80 sm:grid-cols-2">
               {score.partScores
                 .filter((part) => part.value)
                 .map((part) => (
-                  <div key={part.label} className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                    <div className="flex items-center justify-between text-xs uppercase tracking-[0.2em]">
+                  <div
+                    key={part.label}
+                    className="rounded-2xl border border-white/10 bg-white/5 p-4"
+                  >
+                    <div className="flex items-center justify-between text-[0.6rem] uppercase tracking-[0.25em]">
                       <span>{part.label}</span>
                       <span>
                         Tier {part.tier} · {part.tierLabel}
@@ -101,9 +110,7 @@ export function ShareCard({ score }: ShareCardProps) {
                 ))}
             </div>
           </div>
-          <div className="text-xs text-mist">
-            {score.estimateNote}
-          </div>
+          <div className="relative text-xs text-mist/70">{score.estimateNote}</div>
         </div>
       </div>
     </div>
