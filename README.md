@@ -9,6 +9,21 @@ A privacy-first, Apple-inspired name rarity calculator. Everything runs locally 
 - Share card generator (1080×1080 and 1200×630)
 - Local-only computation with no data storage
 
+## Data
+
+This project uses US-only frequency tables:
+
+- **SSA baby names** (1880–latest, aggregated) for first and middle names.
+- **US Census 2010 surnames** for last names.
+
+Run the build script to download and generate compact JSON tables in `data/generated/`:
+
+```bash
+python3 scripts/build_data.py
+```
+
+Only compact, derived tables are committed to keep runtime offline. Review SSA/Census source terms if you regenerate data.
+
 ## Tech Stack
 
 - Next.js 14 (App Router)
@@ -29,6 +44,7 @@ Open [http://localhost:3000](http://localhost:3000) to view the app.
 
 - `npm run dev` — start the development server
 - `npm run build` — create a production build
+- `npm run build:data` — download and generate the SSA/Census frequency tables
 - `npm run start` — run the production server
 - `npm run lint` — run Next.js linting
 - `npm run test` — run unit tests
