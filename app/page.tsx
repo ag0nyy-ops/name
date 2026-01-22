@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import { NameAnalyzer } from "../components/NameAnalyzer";
 
 export default function HomePage() {
-  redirect("/index.html");
+  return <NameAnalyzer />;
 }
