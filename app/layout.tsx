@@ -5,7 +5,7 @@ import { SiteHeader } from "../components/SiteHeader";
 import { SiteFooter } from "../components/SiteFooter";
 
 export const metadata: Metadata = {
-  title: "Name Rarity",
+  title: "whatsmynamerarity",
   description: "A transparent, privacy-first name rarity calculator.",
   icons: [{ rel: "icon", url: "/favicon.svg" }]
 };
