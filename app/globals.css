@@ -40,7 +40,7 @@ main {
 }
 
 .glass-card {
-  @apply rounded-card border border-white/12 bg-graphite/75 shadow-soft backdrop-blur-xl;
+  @apply rounded-card border border-white/10 bg-graphite/75 shadow-soft backdrop-blur-xl;
 }
 
 .light .glass-card {
@@ -60,7 +60,7 @@ main {
 }
 
 .button-primary {
-  @apply inline-flex items-center justify-center gap-2 rounded-full border border-white/12 bg-white/10 px-6 py-3 text-[0.72rem] font-semibold uppercase tracking-[0.25em] text-glacier transition duration-200 ease-out-smooth hover:border-white/30 hover:bg-white/20 hover:shadow-glow active:scale-[0.98];
+  @apply inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/10 px-6 py-3 text-[0.72rem] font-semibold uppercase tracking-[0.25em] text-glacier transition duration-200 ease-out-smooth hover:border-white/30 hover:bg-white/20 hover:shadow-glow active:scale-[0.98];
 }
 
 .light .button-primary {
@@ -68,7 +68,7 @@ main {
 }
 
 .theme-toggle {
-  @apply rounded-full border border-white/12 bg-white/5 px-4 py-2 text-[0.65rem] font-semibold uppercase tracking-[0.25em] text-glacier transition duration-200 ease-out-smooth hover:border-white/30 hover:bg-white/10;
+  @apply rounded-full border border-white/10 bg-white/5 px-4 py-2 text-[0.65rem] font-semibold uppercase tracking-[0.25em] text-glacier transition duration-200 ease-out-smooth hover:border-white/30 hover:bg-white/10;
 }
 
 .light .theme-toggle {
@@ -76,7 +76,7 @@ main {
 }
 
 .input-field {
-  @apply w-full rounded-full border border-white/15 bg-white/6 px-5 py-3 text-base text-glacier placeholder:text-mist/70 transition duration-200 ease-out-smooth focus:border-aurora/60 focus:ring-2 focus:ring-aurora/40 focus:outline-none;
+  @apply w-full rounded-full border border-white/10 bg-white/5 px-5 py-3 text-base text-glacier placeholder:text-mist/70 transition duration-200 ease-out-smooth focus:border-aurora/60 focus:ring-2 focus:ring-aurora/40 focus:outline-none;
 }
 
 .light .input-field {
@@ -84,7 +84,7 @@ main {
 }
 
 .meter-shell {
-  @apply relative h-2 w-full rounded-full border border-white/12 bg-white/5;
+  @apply relative h-2 w-full rounded-full border border-white/10 bg-white/5;
 }
 
 .light .meter-shell {
