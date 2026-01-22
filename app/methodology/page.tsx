@@ -2,7 +2,7 @@ export default function MethodologyPage() {
   return (
     <section className="glass-card flex flex-col gap-6 p-8 md:p-12">
       <div className="flex flex-col gap-3">
-        <p className="text-xs font-semibold uppercase tracking-[0.4em] text-mist">Methodology</p>
+        <p className="label-text">Methodology</p>
         <h1 className="section-title">Transparent tiers, no hidden stats.</h1>
         <p className="section-subtitle">
           This tool uses a deterministic tier system to estimate how structurally rare a name looks.
@@ -44,6 +44,15 @@ export default function MethodologyPage() {
             We multiply the active tiers and compress them into a 0–100 score using logarithmic
             scaling. This creates a stacking effect while keeping the score readable. The output is
             paired with a label (common → extreme) and a confidence level.
+          </p>
+        </div>
+        <div>
+          <h2 className="text-base font-semibold text-glacier">Input completeness caps</h2>
+          <p className="mt-2">
+            To avoid fake precision, incomplete inputs are capped. Single-token inputs (only a
+            first name) max out at 45 and show low confidence. Missing last names are capped at 60,
+            and they cannot reach the “extreme” label. “Very rare” requires at least a first and
+            last name, while “extreme” requires a last-name tier of 8+ or a special-case match.
           </p>
         </div>
         <div>
