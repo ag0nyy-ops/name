@@ -34,6 +34,15 @@ export type PartResult = {
   rarityTier: "common" | "uncommon" | "rare" | "very rare" | "extreme" | "unknown";
   notes: string[];
   flags: string[];
+  phoneticBase?: {
+    code: string;
+    name: string;
+  };
+  spellingVariant?: {
+    type: "exact" | "diacritics" | "phonetic" | "none";
+    boost: number;
+    note?: string;
+  };
 };
 
 export type EngineDebug = {
@@ -95,10 +104,25 @@ type FrequencyTable = {
   names: Record<string, FrequencyEntry>;
 };
 
-export const SCORING_MODEL_VERSION = "v3.0";
+type PhoneticBase = {
+  code: string;
+  name: string;
+  count: number;
+  percentile: number;
+};
+
+type PhoneticLookupResult = LookupResult & {
+  matchType: "exact" | "diacritics" | "phonetic" | "none";
+  phoneticBase?: PhoneticBase;
+};
+
+export const SCORING_MODEL_VERSION = "v3.1";
 
 const SSA_TABLE = ssaFirstNames as FrequencyTable;
 const CENSUS_TABLE = censusSurnames as FrequencyTable;
+
+const SSA_PHONETIC_INDEX = buildPhoneticIndex(SSA_TABLE);
+const CENSUS_PHONETIC_INDEX = buildPhoneticIndex(CENSUS_TABLE);
 
 export const DATASET_INFO = {
   ssa: {
@@ -195,6 +219,61 @@ function parseInput(input: string): ParsedInput {
 
 function stripDiacritics(value: string): string {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").normalize("NFC");
+}
+
+function soundex(value: string): string {
+  const cleaned = stripDiacritics(value).toLowerCase().replace(/[^a-z]/g, "");
+  if (!cleaned) return "";
+  const first = cleaned[0].toUpperCase();
+  const map: Record<string, string> = {
+    b: "1", f: "1", p: "1", v: "1",
+    c: "2", g: "2", j: "2", k: "2", q: "2", s: "2", x: "2", z: "2",
+    d: "3", t: "3",
+    l: "4",
+    m: "5", n: "5",
+    r: "6"
+  };
+  let output = first;
+  let lastCode = map[cleaned[0]] ?? "";
+  for (let i = 1; i < cleaned.length; i += 1) {
+    const char = cleaned[i];
+    const code = map[char] ?? "";
+    if (code && code !== lastCode) {
+      output += code;
+    }
+    if (code) {
+      lastCode = code;
+    }
+  }
+  return (output + "000").slice(0, 4);
+}
+
+function buildPhoneticIndex(table: FrequencyTable): Map<string, PhoneticBase> {
+  const index = new Map<string, PhoneticBase>();
+  Object.entries(table.names).forEach(([name, entry]) => {
+    const code = soundex(name);
+    if (!code) return;
+    const existing = index.get(code);
+    if (!existing || entry.count > existing.count) {
+      index.set(code, {
+        code,
+        name,
+        count: entry.count,
+        percentile: entry.percentile / table.percentileScale
+      });
+    }
+  });
+  return index;
+}
+
+function getPhoneticBase(
+  index: Map<string, PhoneticBase>,
+  value?: string
+): PhoneticBase | undefined {
+  if (!value) return undefined;
+  const code = soundex(value);
+  if (!code) return undefined;
+  return index.get(code);
 }
 
 function normalizeInput(parsed: ParsedInput): NormalizedInput {
@@ -321,6 +400,103 @@ function lookupFrequency(table: FrequencyTable, value?: string, valueNoDiacritic
   return { notes: ["not found in dataset"], found: false, match: "none", percentile: 0 };
 }
 
+function lookupFrequencyWithPhonetic(
+  table: FrequencyTable,
+  index: Map<string, PhoneticBase>,
+  value?: string,
+  valueNoDiacritics?: string
+): PhoneticLookupResult {
+  const exact = lookupFrequency(table, value, valueNoDiacritics);
+  const phoneticBase = getPhoneticBase(index, valueNoDiacritics ?? value);
+  if (exact.found) {
+    return {
+      ...exact,
+      matchType: exact.match === "partial" ? "diacritics" : "exact",
+      phoneticBase
+    };
+  }
+  if (phoneticBase) {
+    return {
+      found: true,
+      match: "partial",
+      matchType: "phonetic",
+      percentile: phoneticBase.percentile,
+      notes: ["phonetic match", `sounds like "${phoneticBase.name}"`],
+      count: phoneticBase.count,
+      phoneticBase
+    };
+  }
+  return {
+    ...exact,
+    matchType: "none",
+    phoneticBase
+  };
+}
+
+function computeSpellingDeviationBoost(options: {
+  token: string;
+  baseName?: string;
+  baseCount?: number;
+  exactCount?: number;
+  matchType: "exact" | "diacritics" | "phonetic" | "none";
+}): { boost: number; note?: string; variant?: string } {
+  if (!options.baseName || options.baseName === options.token) {
+    if (options.matchType === "diacritics") {
+      return { boost: 1, note: "diacritics-only spelling variation", variant: "diacritics" };
+    }
+    return { boost: 0, variant: options.matchType };
+  }
+  if (options.matchType === "phonetic") {
+    return {
+      boost: 6,
+      note: `rare spelling variant of "${options.baseName}"`,
+      variant: "phonetic"
+    };
+  }
+  if (options.matchType === "exact") {
+    if (options.baseCount && options.exactCount) {
+      const ratio = options.exactCount / options.baseCount;
+      if (ratio >= 0.5) {
+        return { boost: 1, note: `less common spelling of "${options.baseName}"`, variant: "exact" };
+      }
+      if (ratio >= 0.2) {
+        return { boost: 3, note: `uncommon spelling of "${options.baseName}"`, variant: "exact" };
+      }
+      return { boost: 5, note: `rare spelling variant of "${options.baseName}"`, variant: "exact" };
+    }
+    return { boost: 2, note: `uncommon spelling of "${options.baseName}"`, variant: "exact" };
+  }
+  if (options.matchType === "diacritics") {
+    return { boost: 1, note: `diacritics variation of "${options.baseName}"`, variant: "diacritics" };
+  }
+  return { boost: 0, variant: "none" };
+}
+
+function describeSpellingBoost(boost: number): { label: string; adjective: string } {
+  if (boost >= 5) return { label: "rare", adjective: "rare" };
+  if (boost >= 3) return { label: "uncommon", adjective: "uncommon" };
+  if (boost >= 1) return { label: "slightly uncommon", adjective: "slightly uncommon" };
+  return { label: "standard", adjective: "standard" };
+}
+
+function buildSpellingVariantExplanation(options: {
+  token: string;
+  baseName: string;
+  boost: number;
+  baseTier: NameLabel;
+}): string {
+  const descriptor = describeSpellingBoost(options.boost);
+  return `This name is pronounced like “${options.baseName}”, but uses a ${descriptor.label} spelling variant (${options.token}). The spelling itself is ${descriptor.adjective}, even though the base name is ${options.baseTier}. That makes it a uniquely spelled ${options.baseName}.`;
+}
+
+function maxScoreForLabel(label: NameLabel): number {
+  if (label === "common") return 19;
+  if (label === "uncommon") return 44;
+  if (label === "rare") return 69;
+  if (label === "very rare") return 89;
+  return 100;
+}
+
 function toRarityScore(percentile: number): number {
   const normalized = Math.min(1, Math.max(0, percentile));
   const stretched = Math.pow(normalized, RARITY_GAMMA);
@@ -343,13 +519,14 @@ function partLabelFromScore(score?: number, matched?: boolean): PartResult["rari
 function getSuffixBoost(value?: string): { boost: number; tier: PartResult["rarityTier"]; note: string } | null {
   if (!value) return null;
   if (value === "jr" || value === "sr") {
-    return { boost: 1, tier: "common", note: "generational suffix (jr/sr)" };
+    return { boost: 1, tier: "common", note: "common generational suffix (jr/sr, minor modifier)" };
   }
   const romanValue = ROMAN_SUFFIXES.get(value);
   if (!romanValue) return null;
-  if (romanValue <= 3) return { boost: 3, tier: "uncommon", note: "roman numeral suffix (I–III)" };
-  if (romanValue <= 6) return { boost: 5, tier: "rare", note: "roman numeral suffix (IV–VI)" };
-  return { boost: 7, tier: "very rare", note: "roman numeral suffix (VII–X)" };
+  if (romanValue === 1) return { boost: 1, tier: "common", note: "common roman numeral suffix (I, minor modifier)" };
+  if (romanValue <= 3) return { boost: 2, tier: "uncommon", note: "uncommon roman numeral suffix (II–III, minor modifier)" };
+  if (romanValue <= 6) return { boost: 3, tier: "rare", note: "rare roman numeral suffix (IV–VI, minor modifier)" };
+  return { boost: 4, tier: "very rare", note: "very rare roman numeral suffix (VII–X, minor modifier)" };
 }
 
 function countVowels(value: string): number {
@@ -504,8 +681,9 @@ export function scoreNameEngine(input: string): EngineScoreResult {
   const specialLast = applySpecialCase("lastExact", validated.parts.last);
   const specialFull = applySpecialCase("fullExact", validated.parts.raw);
 
-  const firstLookup = lookupFrequency(
+  const firstLookup = lookupFrequencyWithPhonetic(
     SSA_TABLE,
+    SSA_PHONETIC_INDEX,
     validated.parts.first,
     validated.tokensWithoutSuffixNoDiacritics[0]
   );
@@ -513,7 +691,7 @@ export function scoreNameEngine(input: string): EngineScoreResult {
   const middleTokens = validated.parts.middle ? validated.parts.middle.split(" ").filter(Boolean) : [];
   const middleTokensNoDiacritics = middleTokens.map(stripDiacritics);
   const middleLookups = middleTokens.map((token, index) =>
-    lookupFrequency(SSA_TABLE, token, middleTokensNoDiacritics[index])
+    lookupFrequencyWithPhonetic(SSA_TABLE, SSA_PHONETIC_INDEX, token, middleTokensNoDiacritics[index])
   );
 
   const lastToken = validated.parts.last;
@@ -524,8 +702,9 @@ export function scoreNameEngine(input: string): EngineScoreResult {
   const lastCollapsedLookup: LookupResult = lastCollapsedToken
     ? lookupFrequency(CENSUS_TABLE, lastCollapsedToken, stripDiacritics(lastCollapsedToken))
     : { found: false, match: "none", percentile: 0, notes: ["missing"], count: undefined };
-  const lastExact = lookupFrequency(
+  const lastExact = lookupFrequencyWithPhonetic(
     CENSUS_TABLE,
+    CENSUS_PHONETIC_INDEX,
     lastToken,
     lastToken ? stripDiacritics(lastToken) : undefined
   );
@@ -596,22 +775,62 @@ export function scoreNameEngine(input: string): EngineScoreResult {
     lastNotes.push(...lastExact.notes);
   }
 
-  const firstScore = specialFirst.tier
+  const firstBasePercentile = firstLookup.phoneticBase?.percentile ?? firstLookup.percentile;
+  const firstBaseScore = specialFirst.tier
     ? Math.round((specialFirst.tier / 10) * 100)
     : firstLookup.found
-      ? toRarityScore(firstLookup.percentile)
+      ? toRarityScore(firstBasePercentile)
       : 0;
-  const middleScores = middleLookups.filter((lookup) => lookup.found).map((lookup) => toRarityScore(lookup.percentile));
-  const middleScore = specialMiddle.tier
+  const firstSpellingBoost = specialFirst.tier
+    ? { boost: 0 }
+    : computeSpellingDeviationBoost({
+        token: validated.parts.first ?? "",
+        baseName: firstLookup.phoneticBase?.name,
+        baseCount: firstLookup.phoneticBase?.count,
+        exactCount: firstLookup.count,
+        matchType: firstLookup.matchType
+      });
+
+  const middleBaseScores = middleLookups
+    .filter((lookup) => lookup.found)
+    .map((lookup) => toRarityScore(lookup.phoneticBase?.percentile ?? lookup.percentile));
+  const middleBaseScore = specialMiddle.tier
     ? Math.round((specialMiddle.tier / 10) * 100)
-    : middleScores.length > 0
-      ? Math.round(middleScores.reduce((sum, value) => sum + value, 0) / middleScores.length)
+    : middleBaseScores.length > 0
+      ? Math.round(middleBaseScores.reduce((sum, value) => sum + value, 0) / middleBaseScores.length)
       : 0;
-  const lastScore = specialLast.tier
+  const middleSpellingBoosts = middleLookups
+    .map((lookup, index) => {
+      if (!lookup.found) return { boost: 0, note: undefined };
+      return computeSpellingDeviationBoost({
+        token: middleTokens[index] ?? "",
+        baseName: lookup.phoneticBase?.name,
+        baseCount: lookup.phoneticBase?.count,
+        exactCount: lookup.count,
+        matchType: lookup.matchType
+      });
+    })
+    .filter((entry) => entry.boost > 0);
+  const middleSpellingBoost =
+    middleSpellingBoosts.length > 0
+      ? Math.round(middleSpellingBoosts.reduce((sum, entry) => sum + entry.boost, 0) / middleSpellingBoosts.length)
+      : 0;
+
+  const lastBaseScore = specialLast.tier
     ? Math.round((specialLast.tier / 10) * 100)
     : lastPercentile !== undefined
       ? toRarityScore(lastPercentile)
       : 0;
+  const lastSpellingBoost =
+    !specialLast.tier && lastToken && !lastHasHyphen && lastExact.found
+      ? computeSpellingDeviationBoost({
+          token: lastToken,
+          baseName: lastExact.phoneticBase?.name,
+          baseCount: lastExact.phoneticBase?.count,
+          exactCount: lastExact.count,
+          matchType: lastExact.matchType
+        })
+      : { boost: 0 };
 
   const firstPart: PartResult | undefined = validated.parts.first
     ? {
@@ -622,9 +841,19 @@ export function scoreNameEngine(input: string): EngineScoreResult {
         source: specialFirst.tier ? "special" : "ssa",
         count: firstLookup.count,
         percentile: firstLookup.found ? firstLookup.percentile : undefined,
-        rarityTier: partLabelFromScore(firstScore, firstMatchStatus !== "none"),
-        notes: [specialFirst.note, ...firstLookup.notes].filter((note): note is string => Boolean(note)),
-        flags: []
+        rarityTier: partLabelFromScore(firstBaseScore, firstMatchStatus !== "none"),
+        notes: [specialFirst.note, ...firstLookup.notes, firstSpellingBoost.note].filter(
+          (note): note is string => Boolean(note)
+        ),
+        flags: [],
+        phoneticBase: firstLookup.phoneticBase
+          ? { code: firstLookup.phoneticBase.code, name: firstLookup.phoneticBase.name }
+          : undefined,
+        spellingVariant: {
+          type: firstLookup.matchType,
+          boost: firstSpellingBoost.boost,
+          note: firstSpellingBoost.note
+        }
       }
     : undefined;
 
@@ -637,12 +866,13 @@ export function scoreNameEngine(input: string): EngineScoreResult {
         source: specialMiddle.tier ? "special" : "ssa",
         count: middleLookups[0]?.count,
         percentile: middleLookups.length > 0 ? middleLookups[0]?.percentile : undefined,
-        rarityTier: partLabelFromScore(middleScore, middleMatchStatus !== "none"),
+        rarityTier: partLabelFromScore(middleBaseScore, middleMatchStatus !== "none"),
         notes: validated.parts.middle
           ? [
               middleTokens.length > 1 ? "multiple middle tokens" : "single middle token",
-              `${middleMatchedCount}/${middleTokens.length} middle tokens matched`
-            ]
+              `${middleMatchedCount}/${middleTokens.length} middle tokens matched`,
+              middleSpellingBoosts.length > 0 ? "spelling variants detected in middle tokens" : undefined
+            ].filter((note): note is string => Boolean(note))
           : ["no middle name provided"],
         flags: []
       }
@@ -657,9 +887,17 @@ export function scoreNameEngine(input: string): EngineScoreResult {
         source: lastSource,
         count: lastCount,
         percentile: lastPercentile,
-        rarityTier: partLabelFromScore(lastScore, lastMatchStatus !== "none"),
-        notes: lastNotes,
-        flags: []
+        rarityTier: partLabelFromScore(lastBaseScore, lastMatchStatus !== "none"),
+        notes: [...lastNotes, lastSpellingBoost.note].filter((note): note is string => Boolean(note)),
+        flags: [],
+        phoneticBase: lastExact.phoneticBase
+          ? { code: lastExact.phoneticBase.code, name: lastExact.phoneticBase.name }
+          : undefined,
+        spellingVariant: {
+          type: lastExact.matchType,
+          boost: lastSpellingBoost.boost,
+          note: lastSpellingBoost.note
+        }
       }
     : undefined;
 
@@ -700,20 +938,95 @@ export function scoreNameEngine(input: string): EngineScoreResult {
         }
       : undefined;
 
+  const spellingExplanations: string[] = [];
+  if (
+    validated.parts.first &&
+    firstSpellingBoost.boost > 0 &&
+    firstLookup.phoneticBase?.name &&
+    firstLookup.phoneticBase.name !== validated.parts.first
+  ) {
+    spellingExplanations.push(
+      buildSpellingVariantExplanation({
+        token: validated.parts.first,
+        baseName: firstLookup.phoneticBase.name,
+        boost: firstSpellingBoost.boost,
+        baseTier: labelFromScore(firstBaseScore)
+      })
+    );
+  }
+  middleLookups.forEach((lookup, index) => {
+    const token = middleTokens[index];
+    if (
+      token &&
+      lookup.phoneticBase?.name &&
+      lookup.phoneticBase.name !== token &&
+      lookup.found
+    ) {
+      const boost = computeSpellingDeviationBoost({
+        token,
+        baseName: lookup.phoneticBase.name,
+        baseCount: lookup.phoneticBase.count,
+        exactCount: lookup.count,
+        matchType: lookup.matchType
+      });
+      if (boost.boost > 0) {
+        spellingExplanations.push(
+          buildSpellingVariantExplanation({
+            token,
+            baseName: lookup.phoneticBase.name,
+            boost: boost.boost,
+            baseTier: labelFromScore(toRarityScore(lookup.phoneticBase.percentile))
+          })
+        );
+      }
+    }
+  });
+  if (
+    lastToken &&
+    !lastHasHyphen &&
+    lastSpellingBoost.boost > 0 &&
+    lastExact.phoneticBase?.name &&
+    lastExact.phoneticBase.name !== lastToken
+  ) {
+    spellingExplanations.push(
+      buildSpellingVariantExplanation({
+        token: lastToken,
+        baseName: lastExact.phoneticBase.name,
+        boost: lastSpellingBoost.boost,
+        baseTier: labelFromScore(lastBaseScore)
+      })
+    );
+  }
+
   if (specialFull.tier) {
     datasetNotes.push("Special-case full name override applied.");
   }
   if (specialLast.tier) {
     datasetNotes.push("Special-case surname override applied.");
   }
-  if (firstLookup.match === "partial" || middleLookups.some((lookup) => lookup.match === "partial") || lastExact.match === "partial") {
+  const diacriticsMatch =
+    firstLookup.matchType === "diacritics" ||
+    middleLookups.some((lookup) => lookup.matchType === "diacritics") ||
+    lastExact.matchType === "diacritics";
+  const phoneticMatch =
+    firstLookup.matchType === "phonetic" ||
+    middleLookups.some((lookup) => lookup.matchType === "phonetic") ||
+    lastExact.matchType === "phonetic";
+  if (diacriticsMatch) {
     datasetNotes.push("diacritics-normalized match");
+  }
+  if (phoneticMatch) {
+    datasetNotes.push("phonetic match (sound-based)");
   }
   if (lastNotes.includes("hyphen both parts found")) {
     datasetNotes.push("Hyphenated surname matched on both parts.");
   }
   if (lastNotes.includes("partial_hyphen_match")) {
     datasetNotes.push("Partial hyphenated surname match.");
+  }
+
+  if (spellingExplanations.length > 0) {
+    confidenceNotes.push(...spellingExplanations);
   }
 
   const matchedTokens = new Set<string>();
@@ -942,29 +1255,59 @@ export function scoreNameEngine(input: string): EngineScoreResult {
   }
 
   const middleScoreEligible = lastMatchStatus !== "none" || tokensForAnalysis.length < 3;
-  if (!middleScoreEligible && middleScore > 0) {
+  if (!middleScoreEligible && middleBaseScore > 0) {
     confidenceGateReasons.push("Middle-name evidence de-emphasized because last name is not matched.");
   }
 
-  const weightedScores: Array<{ score: number; weight: number }> = [];
-  if (firstScore > 0) weightedScores.push({ score: firstScore, weight: rarityWeights.first });
-  if (middleScore > 0 && middleScoreEligible) {
-    weightedScores.push({ score: middleScore, weight: rarityWeights.middle });
+  const weightedBaseScores: Array<{ score: number; weight: number }> = [];
+  if (firstBaseScore > 0) weightedBaseScores.push({ score: firstBaseScore, weight: rarityWeights.first });
+  if (middleBaseScore > 0 && middleScoreEligible) {
+    weightedBaseScores.push({ score: middleBaseScore, weight: rarityWeights.middle });
   }
-  if (lastScore > 0) weightedScores.push({ score: lastScore, weight: rarityWeights.last });
-  const weightSum = weightedScores.reduce((sum, entry) => sum + entry.weight, 0);
-  let baseScore = weightSum
-    ? Math.round(weightedScores.reduce((sum, entry) => sum + entry.score * entry.weight, 0) / weightSum)
+  if (lastBaseScore > 0) weightedBaseScores.push({ score: lastBaseScore, weight: rarityWeights.last });
+  const baseWeightSum = weightedBaseScores.reduce((sum, entry) => sum + entry.weight, 0);
+  let baseScore = baseWeightSum
+    ? Math.round(weightedBaseScores.reduce((sum, entry) => sum + entry.score * entry.weight, 0) / baseWeightSum)
     : 0;
+
+  const weightedSpellingBoosts: Array<{ boost: number; weight: number }> = [];
+  if (firstSpellingBoost.boost > 0) {
+    weightedSpellingBoosts.push({ boost: firstSpellingBoost.boost, weight: rarityWeights.first });
+  }
+  if (middleSpellingBoost > 0 && middleScoreEligible) {
+    weightedSpellingBoosts.push({ boost: middleSpellingBoost, weight: rarityWeights.middle });
+  }
+  if (lastSpellingBoost.boost > 0) {
+    weightedSpellingBoosts.push({ boost: lastSpellingBoost.boost, weight: rarityWeights.last });
+  }
+  const spellingWeightSum = weightedSpellingBoosts.reduce((sum, entry) => sum + entry.weight, 0);
+  const spellingBoost = spellingWeightSum
+    ? Math.round(weightedSpellingBoosts.reduce((sum, entry) => sum + entry.boost * entry.weight, 0) / spellingWeightSum)
+    : 0;
+
+  let coreScore = clamp(baseScore + spellingBoost, 0, 100);
 
   if (specialFull.tier) {
     const fullScore = Math.round((specialFull.tier / 10) * 100);
-    baseScore = Math.max(baseScore, fullScore);
+    coreScore = Math.max(coreScore, fullScore);
   }
 
-  if (suffixAllowed && suffixInfo) {
-    baseScore = clamp(baseScore + suffixInfo.boost, 0, 100);
+  const coreLabel = labelFromScore(coreScore);
+  let structuralBoost = 0;
+  if (validated.parts.middle && middleMatchStatus !== "none") {
+    structuralBoost += middleTokens.length > 1 ? 2 : 1;
   }
+  if (lastHasHyphen && lastMatchStatus !== "none") {
+    structuralBoost += lastMatchStatus === "match" ? 2 : 1;
+  }
+  if (suffixAllowed && suffixInfo) {
+    structuralBoost += suffixInfo.boost;
+  }
+  if (structuralBoost > 0) {
+    confidenceNotes.push("Structural modifiers (middle names, hyphens, suffixes) add a small rarity bump.");
+  }
+  const structuralScore = clamp(coreScore + structuralBoost, 0, maxScoreForLabel(coreLabel));
+  baseScore = structuralScore;
 
   const penaltyPoints = penaltiesApplied.reduce((sum, entry) => sum + entry.points, 0);
   const multiplier = getConfidenceMultiplier(confidenceValue);
@@ -993,6 +1336,12 @@ export function scoreNameEngine(input: string): EngineScoreResult {
     capsApplied.push("Extreme scores require top-tier last name and high confidence.");
     confidenceGateReasons.push("Extreme label blocked without top-tier last name or high confidence.");
     flags.push("extreme_cap");
+  }
+
+  if (finalScoreNumber === 0 && hasDatasetEvidence && confidenceLabel === "high") {
+    finalScoreNumber = 1;
+    confidenceNotes.push("Common names still receive a small baseline score.");
+    reasons.push("Name is common in datasets; low rarity score reflects high frequency.");
   }
 
   let label: NameLabel = labelFromScore(finalScoreNumber);
