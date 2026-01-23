@@ -1,6 +1,13 @@
 import censusSurnames from "../../data/generated/census_surnames.json";
 import ssaFirstNames from "../../data/generated/ssa_first_names.json";
 import specialCases from "../../data/specialCases.json";
+import {
+  buildPhoneticIndex,
+  findPhoneticMatch,
+  stripDiacritics,
+  type PhoneticIndex,
+  type PhoneticMatch
+} from "./phonetic";
 
 export type ConfidenceLabel = "high" | "medium" | "low";
 export type NameLabel =
@@ -21,7 +28,7 @@ export type NameParts = {
   suffixCandidate?: string;
 };
 
-export type MatchStatus = "match" | "partial" | "none";
+export type MatchStatus = "match" | "partial" | "phonetic" | "none";
 
 export type PartResult = {
   raw: string;
@@ -37,6 +44,10 @@ export type PartResult = {
   phoneticBase?: {
     code: string;
     name: string;
+    similarity: number;
+    distance: number;
+    threshold: number;
+    gateSummary: string;
   };
   spellingVariant?: {
     type: "exact" | "diacritics" | "phonetic" | "none";
@@ -80,7 +91,7 @@ export type DatasetCheck = {
   id: string;
   name: string;
   scope: "first" | "middle" | "last";
-  matched: boolean;
+  matchStatus: MatchStatus;
   note?: string;
 };
 
@@ -104,19 +115,14 @@ type FrequencyTable = {
   names: Record<string, FrequencyEntry>;
 };
 
-type PhoneticBase = {
-  code: string;
-  name: string;
-  count: number;
-  percentile: number;
-};
+type PhoneticBase = PhoneticMatch;
 
 type PhoneticLookupResult = LookupResult & {
   matchType: "exact" | "diacritics" | "phonetic" | "none";
   phoneticBase?: PhoneticBase;
 };
 
-export const SCORING_MODEL_VERSION = "v3.1";
+export const SCORING_MODEL_VERSION = "v3.2";
 
 const SSA_TABLE = ssaFirstNames as FrequencyTable;
 const CENSUS_TABLE = censusSurnames as FrequencyTable;
@@ -157,6 +163,8 @@ const ROMAN_SUFFIXES = new Map<string, number>([
 const disallowedCharsRegex = /[^\p{L}\s'-]/gu;
 const fancyHyphenRegex = /[‐‑‒–—―]/g;
 const keyboardSequences = ["qwertyuiop", "asdfghjkl", "zxcvbnm"];
+const PHONETIC_MATCH_CONFIDENCE_PENALTY = 0.06;
+const PHONETIC_SIMILARITY_REPORT_DIGITS = 2;
 
 const confidencePenaltyByFlag: Record<string, number> = {
   repetition_abuse: 0.2,
@@ -217,64 +225,6 @@ function parseInput(input: string): ParsedInput {
   return { raw, rawTokens };
 }
 
-function stripDiacritics(value: string): string {
-  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").normalize("NFC");
-}
-
-function soundex(value: string): string {
-  const cleaned = stripDiacritics(value).toLowerCase().replace(/[^a-z]/g, "");
-  if (!cleaned) return "";
-  const first = cleaned[0].toUpperCase();
-  const map: Record<string, string> = {
-    b: "1", f: "1", p: "1", v: "1",
-    c: "2", g: "2", j: "2", k: "2", q: "2", s: "2", x: "2", z: "2",
-    d: "3", t: "3",
-    l: "4",
-    m: "5", n: "5",
-    r: "6"
-  };
-  let output = first;
-  let lastCode = map[cleaned[0]] ?? "";
-  for (let i = 1; i < cleaned.length; i += 1) {
-    const char = cleaned[i];
-    const code = map[char] ?? "";
-    if (code && code !== lastCode) {
-      output += code;
-    }
-    if (code) {
-      lastCode = code;
-    }
-  }
-  return (output + "000").slice(0, 4);
-}
-
-function buildPhoneticIndex(table: FrequencyTable): Map<string, PhoneticBase> {
-  const index = new Map<string, PhoneticBase>();
-  Object.entries(table.names).forEach(([name, entry]) => {
-    const code = soundex(name);
-    if (!code) return;
-    const existing = index.get(code);
-    if (!existing || entry.count > existing.count) {
-      index.set(code, {
-        code,
-        name,
-        count: entry.count,
-        percentile: entry.percentile / table.percentileScale
-      });
-    }
-  });
-  return index;
-}
-
-function getPhoneticBase(
-  index: Map<string, PhoneticBase>,
-  value?: string
-): PhoneticBase | undefined {
-  if (!value) return undefined;
-  const code = soundex(value);
-  if (!code) return undefined;
-  return index.get(code);
-}
 
 function normalizeInput(parsed: ParsedInput): NormalizedInput {
   const nfc = parsed.raw.normalize("NFC");
@@ -402,43 +352,52 @@ function lookupFrequency(table: FrequencyTable, value?: string, valueNoDiacritic
 
 function lookupFrequencyWithPhonetic(
   table: FrequencyTable,
-  index: Map<string, PhoneticBase>,
+  index: PhoneticIndex,
   value?: string,
   valueNoDiacritics?: string
 ): PhoneticLookupResult {
   const exact = lookupFrequency(table, value, valueNoDiacritics);
-  const phoneticBase = getPhoneticBase(index, valueNoDiacritics ?? value);
   if (exact.found) {
     return {
       ...exact,
       matchType: exact.match === "partial" ? "diacritics" : "exact",
-      phoneticBase
+      phoneticBase: undefined
     };
   }
-  if (phoneticBase) {
+  const phoneticMatch = valueNoDiacritics
+    ? findPhoneticMatch(valueNoDiacritics, index)
+    : value
+      ? findPhoneticMatch(value, index)
+      : undefined;
+  if (phoneticMatch) {
+    const similarityDisplay = phoneticMatch.similarity.toFixed(PHONETIC_SIMILARITY_REPORT_DIGITS);
     return {
       found: true,
-      match: "partial",
+      match: "phonetic",
       matchType: "phonetic",
-      percentile: phoneticBase.percentile,
-      notes: ["phonetic match", `sounds like "${phoneticBase.name}"`],
-      count: phoneticBase.count,
-      phoneticBase
+      percentile: phoneticMatch.percentile,
+      notes: [
+        `phonetic match (double metaphone ${phoneticMatch.code})`,
+        `sounds like "${phoneticMatch.name}", but spelling is uncommon`,
+        `similarity ${similarityDisplay} · edit distance ${phoneticMatch.distance} (≤${phoneticMatch.threshold} for length ${valueNoDiacritics?.length ?? value?.length ?? 0})`,
+        `passed gates: ${phoneticMatch.gateSummary}`
+      ],
+      count: phoneticMatch.count,
+      phoneticBase: phoneticMatch
     };
   }
   return {
     ...exact,
     matchType: "none",
-    phoneticBase
+    phoneticBase: undefined
   };
 }
 
 function computeSpellingDeviationBoost(options: {
   token: string;
   baseName?: string;
-  baseCount?: number;
-  exactCount?: number;
   matchType: "exact" | "diacritics" | "phonetic" | "none";
+  phoneticBase?: PhoneticBase;
 }): { boost: number; note?: string; variant?: string } {
   if (!options.baseName || options.baseName === options.token) {
     if (options.matchType === "diacritics") {
@@ -447,24 +406,17 @@ function computeSpellingDeviationBoost(options: {
     return { boost: 0, variant: options.matchType };
   }
   if (options.matchType === "phonetic") {
+    const similarityBoost = options.phoneticBase?.similarity ? Math.round(options.phoneticBase.similarity * 2) : 0;
+    const distanceBoost = options.phoneticBase?.distance === 0 ? 1 : 0;
+    const boost = clamp(4 + similarityBoost + distanceBoost, 4, 6);
     return {
-      boost: 6,
-      note: `rare spelling variant of "${options.baseName}"`,
+      boost,
+      note: `sounds like "${options.baseName}", but spelling is uncommon`,
       variant: "phonetic"
     };
   }
   if (options.matchType === "exact") {
-    if (options.baseCount && options.exactCount) {
-      const ratio = options.exactCount / options.baseCount;
-      if (ratio >= 0.5) {
-        return { boost: 1, note: `less common spelling of "${options.baseName}"`, variant: "exact" };
-      }
-      if (ratio >= 0.2) {
-        return { boost: 3, note: `uncommon spelling of "${options.baseName}"`, variant: "exact" };
-      }
-      return { boost: 5, note: `rare spelling variant of "${options.baseName}"`, variant: "exact" };
-    }
-    return { boost: 2, note: `uncommon spelling of "${options.baseName}"`, variant: "exact" };
+    return { boost: 0, variant: "exact" };
   }
   if (options.matchType === "diacritics") {
     return { boost: 1, note: `diacritics variation of "${options.baseName}"`, variant: "diacritics" };
@@ -484,9 +436,14 @@ function buildSpellingVariantExplanation(options: {
   baseName: string;
   boost: number;
   baseTier: NameLabel;
+  phoneticBase?: PhoneticBase;
 }): string {
   const descriptor = describeSpellingBoost(options.boost);
-  return `This name is pronounced like “${options.baseName}”, but uses a ${descriptor.label} spelling variant (${options.token}). The spelling itself is ${descriptor.adjective}, even though the base name is ${options.baseTier}. That makes it a uniquely spelled ${options.baseName}.`;
+  if (options.phoneticBase) {
+    const similarity = options.phoneticBase.similarity.toFixed(PHONETIC_SIMILARITY_REPORT_DIGITS);
+    return `Sounds like “${options.baseName}”, but spelling is uncommon (${options.token}). Phonetic code ${options.phoneticBase.code} · similarity ${similarity} · edit distance ${options.phoneticBase.distance} (≤${options.phoneticBase.threshold}). Passed gates: ${options.phoneticBase.gateSummary}. The spelling itself is ${descriptor.adjective}, even though the base name is ${options.baseTier}. That makes it a uniquely spelled ${options.baseName}.`;
+  }
+  return `This name uses a ${descriptor.label} spelling variant (${options.token}) for “${options.baseName}”. The spelling itself is ${descriptor.adjective}, even though the base name is ${options.baseTier}. That makes it a uniquely spelled ${options.baseName}.`;
 }
 
 function maxScoreForLabel(label: NameLabel): number {
@@ -604,29 +561,35 @@ function computeTokenCoverage(inputs: {
   last?: PartResult;
   suffix?: PartResult;
 }): number {
+  const matchScore = (match?: MatchStatus): number => {
+    if (!match || match === "none") return 0;
+    if (match === "match") return 1;
+    if (match === "phonetic") return 0.35;
+    return 0.5;
+  };
   const entries: Array<{ weight: number; score: number }> = [];
   if (inputs.first) {
     entries.push({
       weight: coverageWeights.first,
-      score: inputs.first.match === "match" ? 1 : inputs.first.match === "partial" ? 0.5 : 0
+      score: matchScore(inputs.first.match)
     });
   }
   if (inputs.middle) {
     entries.push({
       weight: coverageWeights.middle,
-      score: inputs.middle.match === "match" ? 1 : inputs.middle.match === "partial" ? 0.5 : 0
+      score: matchScore(inputs.middle.match)
     });
   }
   if (inputs.last) {
     entries.push({
       weight: coverageWeights.last,
-      score: inputs.last.match === "match" ? 1 : inputs.last.match === "partial" ? 0.5 : 0
+      score: matchScore(inputs.last.match)
     });
   }
   if (inputs.suffix) {
     entries.push({
       weight: coverageWeights.suffix,
-      score: inputs.suffix.match === "match" ? 1 : inputs.suffix.match === "partial" ? 0.5 : 0
+      score: matchScore(inputs.suffix.match)
     });
   }
   const weightSum = entries.reduce((sum, entry) => sum + entry.weight, 0);
@@ -667,6 +630,7 @@ export function scoreNameEngine(input: string): EngineScoreResult {
   const penaltiesApplied: PenaltyEntry[] = [];
   const capsApplied: string[] = [];
   const confidenceNotes: string[] = [];
+  let phoneticConfidenceNote: string | null = null;
   const datasetNotes: string[] = [];
 
   const scriptUnsupported = validated.normalized ? hasNonLatinScript(validated.normalized) : false;
@@ -716,12 +680,17 @@ export function scoreNameEngine(input: string): EngineScoreResult {
     ? "partial"
     : firstLookup.match;
   const middleMatchedCount = middleLookups.filter((lookup) => lookup.found).length;
+  const middleHasOnlyPhonetic =
+    middleLookups.length > 0 &&
+    middleLookups.every((lookup) => lookup.matchType === "phonetic");
   const middleMatchStatus: MatchStatus = specialMiddle.tier
     ? "partial"
     : middleMatchedCount === 0
       ? "none"
       : middleMatchedCount === middleLookups.length
-        ? "match"
+        ? middleHasOnlyPhonetic
+          ? "phonetic"
+          : "match"
         : "partial";
 
   let lastMatchStatus: MatchStatus = "none";
@@ -785,10 +754,12 @@ export function scoreNameEngine(input: string): EngineScoreResult {
     ? { boost: 0 }
     : computeSpellingDeviationBoost({
         token: validated.parts.first ?? "",
-        baseName: firstLookup.phoneticBase?.name,
-        baseCount: firstLookup.phoneticBase?.count,
-        exactCount: firstLookup.count,
-        matchType: firstLookup.matchType
+        baseName:
+          firstLookup.matchType === "diacritics"
+            ? validated.tokensWithoutSuffixNoDiacritics[0]
+            : firstLookup.phoneticBase?.name,
+        matchType: firstLookup.matchType,
+        phoneticBase: firstLookup.phoneticBase
       });
 
   const middleBaseScores = middleLookups
@@ -804,10 +775,12 @@ export function scoreNameEngine(input: string): EngineScoreResult {
       if (!lookup.found) return { boost: 0, note: undefined };
       return computeSpellingDeviationBoost({
         token: middleTokens[index] ?? "",
-        baseName: lookup.phoneticBase?.name,
-        baseCount: lookup.phoneticBase?.count,
-        exactCount: lookup.count,
-        matchType: lookup.matchType
+        baseName:
+          lookup.matchType === "diacritics"
+            ? middleTokensNoDiacritics[index]
+            : lookup.phoneticBase?.name,
+        matchType: lookup.matchType,
+        phoneticBase: lookup.phoneticBase
       });
     })
     .filter((entry) => entry.boost > 0);
@@ -825,10 +798,12 @@ export function scoreNameEngine(input: string): EngineScoreResult {
     !specialLast.tier && lastToken && !lastHasHyphen && lastExact.found
       ? computeSpellingDeviationBoost({
           token: lastToken,
-          baseName: lastExact.phoneticBase?.name,
-          baseCount: lastExact.phoneticBase?.count,
-          exactCount: lastExact.count,
-          matchType: lastExact.matchType
+          baseName:
+            lastExact.matchType === "diacritics"
+              ? stripDiacritics(lastToken)
+              : lastExact.phoneticBase?.name,
+          matchType: lastExact.matchType,
+          phoneticBase: lastExact.phoneticBase
         })
       : { boost: 0 };
 
@@ -842,12 +817,23 @@ export function scoreNameEngine(input: string): EngineScoreResult {
         count: firstLookup.count,
         percentile: firstLookup.found ? firstLookup.percentile : undefined,
         rarityTier: partLabelFromScore(firstBaseScore, firstMatchStatus !== "none"),
-        notes: [specialFirst.note, ...firstLookup.notes, firstSpellingBoost.note].filter(
-          (note): note is string => Boolean(note)
+        notes: Array.from(
+          new Set(
+            [specialFirst.note, ...firstLookup.notes, firstSpellingBoost.note].filter(
+              (note): note is string => Boolean(note)
+            )
+          )
         ),
         flags: [],
         phoneticBase: firstLookup.phoneticBase
-          ? { code: firstLookup.phoneticBase.code, name: firstLookup.phoneticBase.name }
+          ? {
+              code: firstLookup.phoneticBase.code,
+              name: firstLookup.phoneticBase.name,
+              similarity: firstLookup.phoneticBase.similarity,
+              distance: firstLookup.phoneticBase.distance,
+              threshold: firstLookup.phoneticBase.threshold,
+              gateSummary: firstLookup.phoneticBase.gateSummary
+            }
           : undefined,
         spellingVariant: {
           type: firstLookup.matchType,
@@ -888,10 +874,19 @@ export function scoreNameEngine(input: string): EngineScoreResult {
         count: lastCount,
         percentile: lastPercentile,
         rarityTier: partLabelFromScore(lastBaseScore, lastMatchStatus !== "none"),
-        notes: [...lastNotes, lastSpellingBoost.note].filter((note): note is string => Boolean(note)),
+        notes: Array.from(
+          new Set([...lastNotes, lastSpellingBoost.note].filter((note): note is string => Boolean(note)))
+        ),
         flags: [],
         phoneticBase: lastExact.phoneticBase
-          ? { code: lastExact.phoneticBase.code, name: lastExact.phoneticBase.name }
+          ? {
+              code: lastExact.phoneticBase.code,
+              name: lastExact.phoneticBase.name,
+              similarity: lastExact.phoneticBase.similarity,
+              distance: lastExact.phoneticBase.distance,
+              threshold: lastExact.phoneticBase.threshold,
+              gateSummary: lastExact.phoneticBase.gateSummary
+            }
           : undefined,
         spellingVariant: {
           type: lastExact.matchType,
@@ -950,7 +945,8 @@ export function scoreNameEngine(input: string): EngineScoreResult {
         token: validated.parts.first,
         baseName: firstLookup.phoneticBase.name,
         boost: firstSpellingBoost.boost,
-        baseTier: labelFromScore(firstBaseScore)
+        baseTier: labelFromScore(firstBaseScore),
+        phoneticBase: firstLookup.matchType === "phonetic" ? firstLookup.phoneticBase : undefined
       })
     );
   }
@@ -965,9 +961,8 @@ export function scoreNameEngine(input: string): EngineScoreResult {
       const boost = computeSpellingDeviationBoost({
         token,
         baseName: lookup.phoneticBase.name,
-        baseCount: lookup.phoneticBase.count,
-        exactCount: lookup.count,
-        matchType: lookup.matchType
+        matchType: lookup.matchType,
+        phoneticBase: lookup.phoneticBase
       });
       if (boost.boost > 0) {
         spellingExplanations.push(
@@ -975,7 +970,8 @@ export function scoreNameEngine(input: string): EngineScoreResult {
             token,
             baseName: lookup.phoneticBase.name,
             boost: boost.boost,
-            baseTier: labelFromScore(toRarityScore(lookup.phoneticBase.percentile))
+            baseTier: labelFromScore(toRarityScore(lookup.phoneticBase.percentile)),
+            phoneticBase: lookup.matchType === "phonetic" ? lookup.phoneticBase : undefined
           })
         );
       }
@@ -993,7 +989,8 @@ export function scoreNameEngine(input: string): EngineScoreResult {
         token: lastToken,
         baseName: lastExact.phoneticBase.name,
         boost: lastSpellingBoost.boost,
-        baseTier: labelFromScore(lastBaseScore)
+        baseTier: labelFromScore(lastBaseScore),
+        phoneticBase: lastExact.matchType === "phonetic" ? lastExact.phoneticBase : undefined
       })
     );
   }
@@ -1016,7 +1013,9 @@ export function scoreNameEngine(input: string): EngineScoreResult {
     datasetNotes.push("diacritics-normalized match");
   }
   if (phoneticMatch) {
-    datasetNotes.push("phonetic match (sound-based)");
+    datasetNotes.push("phonetic match (sound-based inference)");
+    flags.push("phonetic_match");
+    phoneticConfidenceNote = "Phonetic inference reduces confidence.";
   }
   if (lastNotes.includes("hyphen both parts found")) {
     datasetNotes.push("Hyphenated surname matched on both parts.");
@@ -1027,6 +1026,9 @@ export function scoreNameEngine(input: string): EngineScoreResult {
 
   if (spellingExplanations.length > 0) {
     confidenceNotes.push(...spellingExplanations);
+  }
+  if (phoneticConfidenceNote) {
+    confidenceNotes.push(phoneticConfidenceNote);
   }
 
   const matchedTokens = new Set<string>();
@@ -1198,16 +1200,24 @@ export function scoreNameEngine(input: string): EngineScoreResult {
 
   let confidenceValue = 0;
   if (lastPart) {
-    confidenceValue += lastPart.match === "match" ? 0.55 : lastPart.match === "partial" ? 0.3 : 0;
+    confidenceValue += lastPart.match === "match" ? 0.55 : lastPart.match === "partial" ? 0.3 : lastPart.match === "phonetic" ? 0.2 : 0;
   }
   if (firstPart) {
-    confidenceValue += firstPart.match === "match" ? 0.3 : firstPart.match === "partial" ? 0.15 : 0;
+    confidenceValue += firstPart.match === "match" ? 0.3 : firstPart.match === "partial" ? 0.15 : firstPart.match === "phonetic" ? 0.1 : 0;
   }
   if (middlePart) {
-    confidenceValue += middlePart.match === "match" ? 0.12 : middlePart.match === "partial" ? 0.06 : 0;
+    confidenceValue += middlePart.match === "match" ? 0.12 : middlePart.match === "partial" ? 0.06 : middlePart.match === "phonetic" ? 0.04 : 0;
   }
   if (suffixPart && suffixPart.match === "match") {
     confidenceValue += 0.03;
+  }
+
+  const phoneticMatchCount = [firstPart, middlePart, lastPart].filter(
+    (part) => part?.match === "phonetic"
+  ).length;
+  if (phoneticMatchCount > 0) {
+    confidenceValue -= phoneticMatchCount * PHONETIC_MATCH_CONFIDENCE_PENALTY;
+    phoneticConfidenceNote = "Phonetic inference reduces confidence.";
   }
 
   if (!validated.parts.first) confidenceValue -= 0.35;
