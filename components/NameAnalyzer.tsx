@@ -230,7 +230,11 @@ export function NameAnalyzer() {
                         {result.datasetsChecked.length > 0 ? (
                           result.datasetsChecked.map((dataset, index) => (
                             <li key={`${dataset.id}-${dataset.scope}-${index}`}>
-                              {dataset.name} ({dataset.scope}) — {dataset.matched ? "match" : "no match"}
+                              {dataset.name} ({dataset.scope}) — {dataset.matchStatus === "none"
+                                ? "no match"
+                                : dataset.matchStatus === "partial"
+                                  ? "partial match"
+                                  : dataset.matchStatus}
                               {dataset.note ? ` · ${dataset.note}` : ""}
                             </li>
                           ))
