@@ -147,6 +147,17 @@ export function NameAnalyzer() {
                   <p className="text-xs text-mist/70">Estimated {result.estimate}</p>
                 )}
 
+                {result.confidenceNotes.length > 0 && (
+                  <div className="rounded-2xl border border-white/10 bg-ink/40 p-4 text-sm text-mist/80">
+                    <p className="label-text mb-2 text-mist/70">Explanation</p>
+                    <ul className="space-y-2">
+                      {result.confidenceNotes.map((note) => (
+                        <li key={note}>{note}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
                 {(result.flags.length > 0 || result.reasons.length > 0) && (
                   <motion.div
                     className="flex flex-wrap gap-2"

@@ -23,17 +23,18 @@ export default function MethodologyPage() {
         <div>
           <h2 className="text-base font-semibold text-glacier">Parsing rules</h2>
           <ul className="mt-2 list-disc space-y-1 pl-5">
-            <li>Suffixes include Jr/Sr and Roman numerals I–XX (case-insensitive).</li>
+            <li>Suffixes include Jr/Sr and Roman numerals I–X (case-insensitive).</li>
             <li>First token becomes first name, last token becomes last name, middle tokens join.</li>
           </ul>
         </div>
         <div>
           <h2 className="text-base font-semibold text-glacier">Dataset routing</h2>
           <p className="mt-2">
-            The engine detects script and diacritics, then routes to datasets in priority order. In
-            v1, we only check US SSA baby names for first/middle and US Census surnames for last.
-            The UI lists every dataset checked. If no dataset matches the script, we mark the part
-            as “not found,” lower confidence, and show “we don’t know.”
+            The engine detects script and diacritics, then routes to datasets in priority order. We
+            check exact spellings first, fall back to diacritics-normalized matches, and then use a
+            phonetic (sound-based) layer to find the closest base name. The UI lists every dataset
+            checked. If no dataset matches the script, we mark the part as “not found,” lower
+            confidence, and show “we don’t know.”
           </p>
         </div>
         <div>
@@ -45,22 +46,19 @@ export default function MethodologyPage() {
           </p>
         </div>
         <div>
-          <h2 className="text-base font-semibold text-glacier">Tier system (1–10)</h2>
+          <h2 className="text-base font-semibold text-glacier">Rarity layers</h2>
           <ul className="mt-2 list-disc space-y-1 pl-5">
-            <li>Percentile bins map to tiers (top 1% → tier 2, bottom 1% → tier 10).</li>
-            <li>Stylized spelling adds a small +0.5 tier bump (max).</li>
-            <li>Multi-token middle names use an average tier with lower confidence.</li>
-            <li>Hyphenated last names have a baseline tier ≥7.</li>
-            <li>Roman numeral suffixes add a +0.5 tier bump (max).</li>
-            <li>Tier 1 is reserved for missing middle/suffix.</li>
+            <li>Base phonetic frequency: how common the name sounds, based on datasets.</li>
+            <li>Spelling deviation: a small additive boost if the spelling is uncommon for that base.</li>
+            <li>Structural modifiers: minor boosts for suffixes, hyphens, and middle names.</li>
           </ul>
         </div>
         <div>
-          <h2 className="text-base font-semibold text-glacier">Combining tiers</h2>
+          <h2 className="text-base font-semibold text-glacier">Combining signals</h2>
           <p className="mt-2">
-            We convert tiers to weights using a base (~1.7), multiply the weights, and compress the
-            result with logarithmic scaling into a 0–100 score. Labels (common → extreme) are derived
-            from score bins and adjusted for caps.
+            We combine phonetic base scores with spelling-variant boosts, then apply small structural
+            modifiers. Confidence multipliers and penalties compress the result into a 0–100 score.
+            Labels (common → extreme) are derived from score bins and adjusted for caps.
           </p>
         </div>
         <div>
@@ -103,9 +101,8 @@ export default function MethodologyPage() {
         <div>
           <h2 className="text-base font-semibold text-glacier">Reason codes</h2>
           <p className="mt-2">
-            The engine emits reason codes (like <code>NO_LAST_NAME</code>,{" "}
-            <code>NOT_FOUND_IN_DATASETS</code>, and <code>SPAM_WARN</code>) that the UI translates into
-            plain-language explanations.
+            The engine emits plain-language reasons, confidence notes, and dataset summaries so the
+            UI can show exactly why a score moved up or down.
           </p>
         </div>
         <div>
