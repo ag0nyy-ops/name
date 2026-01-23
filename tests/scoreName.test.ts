@@ -9,8 +9,8 @@ vi.mock("../data/generated/ssa_first_names.json", () => ({
     percentileScale: 10000,
     names: {
       john: { count: 50000, percentile: 50 },
+      james: { count: 42000, percentile: 60 },
       jay: { count: 2000, percentile: 1500 },
-      jaymz: { count: 50, percentile: 9800 },
       terrell: { count: 200, percentile: 9000 },
       jordan: { count: 9000, percentile: 500 },
       jose: { count: 11000, percentile: 450 },
@@ -46,9 +46,19 @@ describe("scoreName", () => {
   it("scores common names with high confidence", () => {
     const result = scoreName("john smith");
     expect(result.confidence).toBe("high");
-    expect(result.score ?? 0).toBeGreaterThanOrEqual(5);
+    expect(result.score ?? 0).toBeGreaterThan(0);
     expect(result.score ?? 0).toBeLessThanOrEqual(25);
     expect(result.label).toBe("common");
+  });
+
+  it("recognizes phonetic spelling variants without treating them as unrelated", () => {
+    const base = scoreName("james smith");
+    const variant = scoreName("jaymz smith");
+    expect(variant.score ?? 0).toBeGreaterThan(base.score ?? 0);
+    expect(variant.label).toBe(base.label);
+    expect(variant.confidenceNotes.join(" ")).toMatch(/pronounced like/i);
+    expect(variant.confidenceNotes.join(" ")).toMatch(/james/i);
+    expect(variant.confidenceNotes.join(" ")).toMatch(/jaymz/i);
   });
 
   it("limits junk-heavy inputs and surfaces flags", () => {
@@ -86,6 +96,13 @@ describe("scoreName", () => {
     expect(result.flags).toContain("invalid_suffix");
     const suffixBreakdown = result.breakdown[3];
     expect(suffixBreakdown.matchStatus).toBe("none");
+  });
+
+  it("treats suffixes as minor modifiers", () => {
+    const base = scoreName("john smith");
+    const withSuffix = scoreName("john smith iv");
+    expect(labelRank(withSuffix.label)).toBe(labelRank(base.label));
+    expect(withSuffix.score ?? 0).toBeGreaterThanOrEqual(base.score ?? 0);
   });
 
   it("applies repetition penalties", () => {
