@@ -116,32 +116,32 @@ flags: string[]
   if (flags.includes("script_not_supported")) return [];
   const checks: DatasetCheck[] = [];
   if (parts.first) {
-    const phoneticNote = parts.first.notes.includes("phonetic match") ? "phonetic match" : undefined;
+    const phoneticNote = parts.first.match === "phonetic" ? "phonetic match (sound-based inference)" : undefined;
     checks.push({
       id: DATASET_INFO.ssa.id,
       name: DATASET_INFO.ssa.name,
       scope: "first",
-      matched: parts.first.match !== "none",
+      matchStatus: parts.first.match,
       note: phoneticNote ?? (parts.first.notes.includes("diacritics-normalized match") ? "diacritics-normalized match" : undefined)
     });
   }
   if (parts.middle) {
-    const phoneticNote = parts.middle.notes.includes("phonetic match") ? "phonetic match" : undefined;
+    const phoneticNote = parts.middle.match === "phonetic" ? "phonetic match (sound-based inference)" : undefined;
     checks.push({
       id: DATASET_INFO.ssa.id,
       name: DATASET_INFO.ssa.name,
       scope: "middle",
-      matched: parts.middle.match !== "none",
+      matchStatus: parts.middle.match,
       note: phoneticNote ?? (parts.middle.notes.includes("diacritics-normalized match") ? "diacritics-normalized match" : undefined)
     });
   }
   if (parts.last) {
-    const phoneticNote = parts.last.notes.includes("phonetic match") ? "phonetic match" : undefined;
+    const phoneticNote = parts.last.match === "phonetic" ? "phonetic match (sound-based inference)" : undefined;
     checks.push({
       id: DATASET_INFO.census.id,
       name: DATASET_INFO.census.name,
       scope: "last",
-      matched: parts.last.match !== "none",
+      matchStatus: parts.last.match,
       note: phoneticNote ?? (parts.last.notes.includes("diacritics-normalized match") ? "diacritics-normalized match" : undefined)
     });
   }
