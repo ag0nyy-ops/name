@@ -11,6 +11,7 @@ vi.mock("../data/generated/ssa_first_names.json", () => ({
       john: { count: 50000, percentile: 50 },
       james: { count: 42000, percentile: 60 },
       jay: { count: 2000, percentile: 1500 },
+      joshua: { count: 18000, percentile: 250 },
       terrell: { count: 200, percentile: 9000 },
       jordan: { count: 9000, percentile: 500 },
       jose: { count: 11000, percentile: 450 },
@@ -56,9 +57,58 @@ describe("scoreName", () => {
     const variant = scoreName("jaymz smith");
     expect(variant.score ?? 0).toBeGreaterThan(base.score ?? 0);
     expect(variant.label).toBe(base.label);
-    expect(variant.confidenceNotes.join(" ")).toMatch(/pronounced like/i);
+    expect(variant.breakdown[0].matchStatus).toBe("phonetic");
+    expect(variant.confidenceNotes.join(" ")).toMatch(/sounds like/i);
     expect(variant.confidenceNotes.join(" ")).toMatch(/james/i);
     expect(variant.confidenceNotes.join(" ")).toMatch(/jaymz/i);
+    expect(variant.confidenceNotes.join(" ")).toMatch(/phonetic inference reduces confidence/i);
+    expect({
+      notes: variant.confidenceNotes,
+      flags: variant.flags,
+      firstBreakdown: variant.breakdown[0]
+    }).toMatchInlineSnapshot(`
+      {
+        "firstBreakdown": {
+          "matchStatus": "phonetic",
+          "notes": [
+            "phonetic match (double metaphone JMS)",
+            "sounds like "james", but spelling is uncommon",
+            "similarity 0.40 · edit distance 1 (≤2 for length 5)",
+            "passed gates: length within ±2 and same first two letters",
+          ],
+          "rarityTier": "common",
+          "source": "ssa",
+          "token": "jaymz",
+        },
+        "flags": [
+          "phonetic_match",
+        ],
+        "notes": [
+          "Sounds like “james”, but spelling is uncommon (jaymz). Phonetic code JMS · similarity 0.40 · edit distance 1 (≤2). Passed gates: length within ±2 and same first two letters. The spelling itself is rare, even though the base name is common. That makes it a uniquely spelled james.",
+          "Phonetic inference reduces confidence.",
+        ],
+      }
+    `);
+  });
+
+  it("does not map jackson to john via phonetic shortcuts", () => {
+    const result = scoreName("jackson smith");
+    expect(result.breakdown[0].matchStatus).toBe("none");
+    expect(result.confidenceNotes.join(" ")).not.toMatch(/sounds like/i);
+    expect(result.flags).not.toContain("phonetic_match");
+  });
+
+  it("does not treat jay as a variant of joshua", () => {
+    const result = scoreName("jay smith");
+    expect(result.breakdown[0].matchStatus).toBe("match");
+    expect(result.confidenceNotes.join(" ")).not.toMatch(/sounds like/i);
+    expect(result.flags).not.toContain("phonetic_match");
+  });
+
+  it("does not describe john as a unique spelling of itself", () => {
+    const result = scoreName("john smith");
+    expect(result.confidenceNotes.join(" ")).not.toMatch(/unique/i);
+    expect(result.breakdown[0].notes.join(" ")).not.toMatch(/unique/i);
   });
 
   it("limits junk-heavy inputs and surfaces flags", () => {
