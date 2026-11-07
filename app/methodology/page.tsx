@@ -91,9 +91,9 @@ export default function MethodologyPage() {
           </p>
         </div>
         <div>
-          <h2 className="text-base font-semibold text-glacier">“1 in N” estimates</h2>
+          <h2 className="text-base font-semibold text-glacier">Headcount estimates</h2>
           <p className="mt-2">
-            We only show order-of-magnitude estimates when first and last names are present, both are
+            We show a rough “how many people in the US” estimate (first-name share × surname share × ~335M, assuming the two are independent, which real names are not) only when first and last names are present, both are
             found in datasets, confidence is high, and no caps are applied. Otherwise we explicitly
             say we don’t have enough data.
           </p>

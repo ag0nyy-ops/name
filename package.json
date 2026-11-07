@@ -15,7 +15,6 @@
     "framer-motion": "^11.3.11",
     "html-to-image": "^1.11.11",
     "next": "14.2.5",
-    "node": "^25.4.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
@@ -35,5 +34,14 @@
     "tsx": "^4.21.0",
     "typescript": "^5.5.3",
     "vitest": "^2.0.5"
+  },
+  "license": "MIT",
+  "description": "Privacy-first name rarity calculator using SSA and US Census data",
+  "engines": {
+    "node": ">=18.18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ag0nyy-ops/name.git"
   }
 }

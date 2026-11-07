@@ -75,7 +75,7 @@ Each part contributes a rarity weight based on its tier. The weights are multipl
 - 61–80 **very rare**
 - 81–100 **extreme**
 
-No “1 in N humans” claims are made. Scores are tiered **estimates**, not factual population statistics.
+Per-name rarity is based on how many people carry the name (log of the SSA/Census count), not its rank among distinct names. A rough US headcount is shown only at high confidence (first share × surname share × ~335M, assuming independence); it is an estimate, not a statistic.
 
 ## Special cases
 

@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 import csv
 import json
+import math
 import os
 import pathlib
 import tempfile
 import urllib.request
 import zipfile
-from datetime import datetime
+from datetime import datetime, timezone
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 DATA_DIR = ROOT / "data" / "generated"
@@ -22,7 +23,7 @@ def download(url: str, dest: pathlib.Path) -> None:
     request = urllib.request.Request(
         url,
         headers={
-            "User-Agent": "name-rarity-data-builder/1.0 (+https://github.com/)",
+            "User-Agent": "name-rarity-data-builder/1.0 (+https://github.com/ag0nyy-ops/name)",
             "Accept": "*/*",
         },
     )
@@ -109,18 +110,29 @@ def build_census() -> dict:
 
 
 def build_table(counts: dict[str, int], source: str) -> dict:
+    """Build a frequency table.
+
+    `percentile` is a rarity index on a 0..PERCENTILE_SCALE scale (0 = most
+    common, SCALE = rarest), based on log10(count) between the most and least
+    common names. It is NOT a rank among distinct names: rank-based values
+    made names shared by only a few thousand people look "common".
+    """
+    counts = {name: count for name, count in counts.items() if name != "all other names"}
     sorted_items = sorted(counts.items(), key=lambda item: item[1], reverse=True)
     total_names = len(sorted_items)
     total_count = sum(counts.values())
     names: dict[str, dict[str, int]] = {}
+    hi = math.log10(sorted_items[0][1])
+    lo = math.log10(max(1, sorted_items[-1][1]))
+    span = max(hi - lo, 1e-9)
 
-    for rank, (name, count) in enumerate(sorted_items, start=1):
-        percentile = round((rank / total_names) * PERCENTILE_SCALE)
+    for name, count in sorted_items:
+        percentile = round(((hi - math.log10(count)) / span) * PERCENTILE_SCALE)
         names[name] = {"count": count, "percentile": percentile}
 
     return {
         "source": source,
-        "generatedAt": datetime.utcnow().isoformat() + "Z",
+        "generatedAt": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "totalNames": total_names,
         "totalCount": total_count,
         "percentileScale": PERCENTILE_SCALE,

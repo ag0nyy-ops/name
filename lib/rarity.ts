@@ -68,27 +68,34 @@ const CENSUS_TABLE = censusSurnames as FrequencyTable;
 export const detectSuffix = engineDetectSuffix;
 export const parseName = engineParseName;
 
+const US_POPULATION_ESTIMATE = 335_000_000;
+
+function roundSig(value: number, digits = 2): number {
+  if (value === 0) return 0;
+  const factor = Math.pow(10, digits - Math.floor(Math.log10(Math.abs(value))) - 1);
+  return Math.round(value * factor) / factor;
+}
+
 function getEstimateDetail(options: {
   firstCount?: number;
   lastCount?: number;
   hasCaps: boolean;
   allowEstimate: boolean;
 }): string {
-  if (!options.allowEstimate || options.hasCaps) {
-    return "We don’t have enough data to estimate this reliably.";
+  const unknown = "We don’t have enough data to estimate this reliably.";
+  if (!options.allowEstimate || options.hasCaps) return unknown;
+  if (!options.firstCount || !options.lastCount) return unknown;
+  if (SSA_TABLE.totalCount === 0 || CENSUS_TABLE.totalCount === 0) return unknown;
+  // Rough estimate: share of first name x share of surname x US population.
+  // Assumes first and last names are independent; real names correlate.
+  const rate =
+    (options.firstCount / SSA_TABLE.totalCount) * (options.lastCount / CENSUS_TABLE.totalCount);
+  const people = rate * US_POPULATION_ESTIMATE;
+  if (people < 1) {
+    return "Estimate: probably fewer than 1 person in the US has this exact name (assumes first and last names are independent).";
   }
-  if (!options.firstCount || !options.lastCount) {
-    return "We don’t have enough data to estimate this reliably.";
-  }
-  if (SSA_TABLE.totalCount === 0 || CENSUS_TABLE.totalCount === 0) {
-    return "We don’t have enough data to estimate this reliably.";
-  }
-  const firstRate = SSA_TABLE.totalCount / options.firstCount;
-  const lastRate = CENSUS_TABLE.totalCount / options.lastCount;
-  const combined = firstRate * lastRate;
-  const magnitude = Math.pow(10, Math.round(Math.log10(combined)));
-  const rounded = magnitude.toLocaleString("en-US");
-  return `On the order of 1 in ~${rounded} (based on US datasets).`;
+  const rounded = roundSig(people).toLocaleString("en-US");
+  return `Estimate: roughly ${rounded} ${people < 1.5 ? "person" : "people"} in the US share this exact name (assumes first and last names are independent).`;
 }
 
 function mapPartSource(part?: PartResult): "ssa" | "census" | "none" {
