@@ -22,7 +22,7 @@ Run the build script to download and generate compact JSON tables in `data/gener
 python3 scripts/build_data.py
 ```
 
-Only compact, derived tables are committed to keep runtime offline. Review SSA/Census source terms if you regenerate data.
+Only compact, derived tables are committed. `percentile` in those tables is a log-count rarity index (0 = most common, 10000 = rarest), not a rank. Raw SSA files (`names/`) are gitignored; the script uses them if present, otherwise downloads.
 
 ## Tech Stack
 
@@ -39,6 +39,14 @@ npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) to view the app.
+
+## Deploying
+
+The site is fully static (no server, no env vars). Import the repo into Vercel or Netlify and use the defaults (`npm run build`), or run `npm run build` and serve `.next` with `npm run start`.
+
+## License
+
+MIT. Name data comes from the US SSA and Census Bureau (public domain US government data); see `/sources`.
 
 ## Scripts
 
