@@ -176,7 +176,7 @@ const confidencePenaltyByFlag: Record<string, number> = {
   digits_present: 0.2
 };
 
-const RARITY_GAMMA = 0.55;
+const RARITY_GAMMA = 1;
 
 const rarityWeights = {
   last: 0.55,
@@ -597,6 +597,8 @@ function computeTokenCoverage(inputs: {
   return entries.reduce((sum, entry) => sum + entry.weight * entry.score, 0) / weightSum;
 }
 
+const US_POPULATION_ESTIMATE = 335_000_000;
+
 function getEstimateCounts(options: {
   firstCount?: number;
   lastCount?: number;
@@ -606,8 +608,7 @@ function getEstimateCounts(options: {
   if (!options.firstCount || !options.lastCount) return {};
   if (SSA_TABLE.totalCount === 0 || CENSUS_TABLE.totalCount === 0) return {};
   const rate = (options.firstCount / SSA_TABLE.totalCount) * (options.lastCount / CENSUS_TABLE.totalCount);
-  const estimatedUSCount = Math.max(1, Math.round(rate * Math.min(SSA_TABLE.totalCount, CENSUS_TABLE.totalCount)));
-  return { estimatedUSCount };
+  return { estimatedUSCount: rate * US_POPULATION_ESTIMATE };
 }
 
 export function parseName(input: string): NameParts {
