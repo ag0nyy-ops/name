@@ -1,8 +1,8 @@
 "use client";
 
 import { AnimatePresence, animate, motion } from "framer-motion";
-import { useEffect, useMemo, useState } from "react";
-import { scoreName } from "../lib/rarity";
+import { useEffect, useState } from "react";
+import type { NameScore } from "../lib/rarity";
 import { RarityMeter } from "./RarityMeter";
 import { ShareCard } from "./ShareCard";
 
@@ -27,9 +27,21 @@ export function NameAnalyzer() {
     return () => window.clearInterval(interval);
   }, []);
 
-  const result = useMemo(() => {
-    if (!submitted.trim()) return null;
-    return scoreName(submitted);
+  const [result, setResult] = useState<NameScore | null>(null);
+
+  useEffect(() => {
+    if (!submitted.trim()) {
+      setResult(null);
+      return;
+    }
+    let cancelled = false;
+    // Name tables (~11MB) load on first use, keeping the initial page light.
+    import("../lib/rarity").then(({ scoreName }) => {
+      if (!cancelled) setResult(scoreName(submitted));
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [submitted]);
 
   useEffect(() => {
@@ -54,6 +66,8 @@ export function NameAnalyzer() {
       onUpdate: (value) => setDisplayScore(Math.round(value))
     });
     return () => controls.stop();
+    // displayScore is the animation's start value; re-running on it would loop
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [result?.score]);
 
   const showAnalyzeButton = !isAnalyzing && input.trim().length > 0;
@@ -143,8 +157,8 @@ export function NameAnalyzer() {
 
                 <RarityMeter score={result.score} />
 
-                {result.confidence !== "low" && result.estimate.includes("1 in") && (
-                  <p className="text-xs text-mist/70">Estimated {result.estimate}</p>
+                {result.confidence !== "low" && result.estimate.startsWith("Estimate") && (
+                  <p className="text-xs text-mist/70">{result.estimate}</p>
                 )}
 
                 {result.confidenceNotes.length > 0 && (
