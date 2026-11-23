@@ -1,70 +1,63 @@
 # Name Rarity
 
-A privacy-first, Apple-inspired name rarity calculator. Everything runs locally in your browser — no tracking, no cookies, no external APIs.
+How many people in the US share your name? Type a name and get an estimate, a 0–100 rarity score, and a breakdown of every part, all worked out in your browser. No tracking, no cookies, no server.
 
-## Features
+**Try it:** https://ag0nyy-ops.github.io/name/
 
-- Dark-first, high-polish UI with subtle motion and soft elevation
-- Transparent rarity tiers with confidence levels
-- Share card generator (1080×1080 and 1200×630)
-- Local-only computation with no data storage
+The scoring engine is written in Rust and compiled to WebAssembly; the site is a static Next.js export served by GitHub Pages.
 
-## Data
+## How it works
 
-This project uses US-only frequency tables:
+1. The name is split into first, middle and last (titles, suffixes and `Last, First` order are handled; surname particles like *de la* join the last name).
+2. The first name is looked up in SSA baby names (1880 to present), the last name in the 2010 Census surname list. Accents, hyphens and apostrophes are matched the way those lists store them.
+3. `people = 335 million × first-name share × last-name share`
+4. The score is that headcount on a log scale: 10,000+ people is 0, about one person is 57, a thousandth of a person is 100.
 
-- **SSA baby names** (1880–latest, aggregated) for first and middle names.
-- **US Census 2010 surnames** for last names.
+Names below a list's cutoff (5 babies a year, 100 people) aren't thrown out: they're counted just under the cutoff and the estimate is marked as an upper end. Every result shows its confidence and why. Full details: [methodology.md](methodology.md).
 
-Run the build script to download and generate compact JSON tables in `data/generated/`:
+## Layout
 
-```bash
-python3 scripts/build_data.py
-```
+| Path | What's there |
+| --- | --- |
+| `engine/` | Rust crate: parsing, lookups, phonetic matching, scoring. Builds to wasm with `wasm-pack`. |
+| `lib/engine.ts` | Loads the wasm and the two tables in the browser; TypeScript types for results. |
+| `components/`, `app/` | Next.js UI and pages. |
+| `public/data/` | Compact SSA and Census tables (`{name: count}`, most common first). |
+| `data/specialCases.json` | Hand-checked names the lists can't confirm, each with a note shown in the UI. |
+| `scripts/build_data.py` | Downloads the source data and rebuilds the tables. |
 
-Only compact, derived tables are committed. `percentile` in those tables is a log-count rarity index (0 = most common, 10000 = rarest), not a rank. Raw SSA files (`names/`) are gitignored; the script uses them if present, otherwise downloads.
+## Development
 
-## Tech Stack
-
-- Next.js 14 (App Router)
-- TypeScript
-- Tailwind CSS
-- Vitest for unit tests
-
-## Getting Started
+Needs Node 20+, Rust stable with the `wasm32-unknown-unknown` target, and [wasm-pack](https://rustwasm.github.io/wasm-pack/).
 
 ```bash
+rustup target add wasm32-unknown-unknown
 npm install
+npm run build:engine   # compiles engine/ into lib/wasm/
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) to view the app.
+Open http://localhost:3000. Rerun `npm run build:engine` after changing the Rust code.
+
+### Scripts
+
+- `npm run build:engine`: build the wasm engine
+- `npm run test:engine`: Rust tests (`cargo test` in `engine/`)
+- `npm test`: TypeScript tests against the built wasm, including UI render checks
+- `npm run lint`: ESLint
+- `npm run build`: static export to `out/`
+- `npm run build:data`: re-download SSA and Census data and rebuild the tables
+
+To try a few names from the command line:
+
+```bash
+cargo run --manifest-path engine/Cargo.toml --release --example probe -- "Jay Patty" "José García"
+```
 
 ## Deploying
 
-The site is fully static (no server, no env vars). Import the repo into Vercel or Netlify and use the defaults (`npm run build`), or run `npm run build` and serve `.next` with `npm run start`.
+`.github/workflows/pages.yml` builds the engine and the static site with `NEXT_PUBLIC_BASE_PATH=/name` and deploys `out/` to GitHub Pages on every push to `main`. In the repo settings, **Pages → Build and deployment → Source** must be set to **GitHub Actions**.
 
-## License
+## Data and license
 
-MIT. Name data comes from the US SSA and Census Bureau (public domain US government data); see `/sources`.
-
-## Scripts
-
-- `npm run dev` — start the development server
-- `npm run build` — create a production build
-- `npm run build:data` — download and generate the SSA/Census frequency tables
-- `npm run start` — run the production server
-- `npm run lint` — run Next.js linting
-- `npm run test` — run unit tests
-
-## Deploying to Vercel
-
-1. Push this repo to GitHub.
-2. Create a new Vercel project and import the repository.
-3. Set the framework preset to **Next.js**.
-4. Use the default build settings (`npm run build`) and output (`.next`).
-5. Deploy.
-
-## Privacy
-
-No analytics, no tracking, and no user data storage. Theme preference is stored in localStorage only.
+Code is MIT. Name data comes from the US Social Security Administration and the US Census Bureau, which are public domain US government works; see the [sources page](https://ag0nyy-ops.github.io/name/sources/).

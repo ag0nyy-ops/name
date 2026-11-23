@@ -1,0 +1,14 @@
+{
+  "first": {
+    "source": "SSA baby names (1880-latest), aggregated across years",
+    "generatedAt": "2026-01-22T20:21:07Z",
+    "totalNames": 104819,
+    "totalCount": 372009150
+  },
+  "last": {
+    "source": "US Census 2010 surnames (ranked list, >=100 occurrences)",
+    "generatedAt": "2026-01-22T20:21:08Z",
+    "totalNames": 162253,
+    "totalCount": 265667228
+  }
+}
