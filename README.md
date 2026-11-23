@@ -1,3 +1,5 @@
+> **License:** source-available, view and learn only. Not open source. See [LICENSE](LICENSE) before cloning, forking or using this code.
+
 # Name Rarity
 
 How many people in the US share your name? Type a name and get an estimate, a 0–100 rarity score, and a breakdown of every part, all worked out in your browser. No tracking, no cookies, no server.
@@ -60,4 +62,8 @@ cargo run --manifest-path engine/Cargo.toml --release --example probe -- "Jay Pa
 
 ## Data and license
 
-Code is MIT. Name data comes from the US Social Security Administration and the US Census Bureau, which are public domain US government works; see the [sources page](https://ag0nyy-ops.github.io/name/sources/).
+Source-available, view and learn only. See [LICENSE](LICENSE). Name data comes from the US Social Security Administration and the US Census Bureau, which are public domain US government works and are not covered by the license; see the [sources page](https://ag0nyy-ops.github.io/name/sources/).
+
+## Privacy
+
+No analytics, no tracking, and no user data storage. Theme preference is stored in localStorage only.
