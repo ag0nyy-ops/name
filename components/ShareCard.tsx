@@ -1,31 +1,53 @@
 "use client";
 
 import { toPng } from "html-to-image";
-import { useRef, useState } from "react";
-import type { NameScore } from "../lib/rarity";
+import { useEffect, useRef, useState } from "react";
+import type { NameResult, PartResult } from "../lib/engine";
+import { KIND_TEXT, LABEL_TEXT, formatPeople } from "../lib/format";
 import { RarityMeter } from "./RarityMeter";
 
 const CARD_SIZES = {
-  square: { width: 1080, height: 1080, label: "1080 x 1080" },
-  wide: { width: 1200, height: 630, label: "1200 x 630" }
-};
+  square: { width: 1080, height: 1080, label: "Square" },
+  wide: { width: 1200, height: 630, label: "Wide" }
+} as const;
 
-type ShareCardProps = {
-  score: NameScore;
-};
+type Size = keyof typeof CARD_SIZES;
 
-export function ShareCard({ score }: ShareCardProps) {
-  const [size, setSize] = useState<keyof typeof CARD_SIZES>("square");
+export function ShareCard({ result }: { result: NameResult }) {
+  const [size, setSize] = useState<Size>("square");
   const [isDownloading, setIsDownloading] = useState(false);
+  const [scale, setScale] = useState(0.3);
+  const frameRef = useRef<HTMLDivElement>(null);
   const cardRef = useRef<HTMLDivElement>(null);
+  const card = CARD_SIZES[size];
+
+  // The card is drawn at full export size and scaled down to fit the screen.
+  useEffect(() => {
+    const frame = frameRef.current;
+    if (!frame) return;
+    const update = () => setScale(Math.min(1, frame.clientWidth / card.width));
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(frame);
+    return () => observer.disconnect();
+  }, [card.width]);
 
   const handleDownload = async () => {
     if (!cardRef.current) return;
     setIsDownloading(true);
     try {
-      const dataUrl = await toPng(cardRef.current, { cacheBust: true, pixelRatio: 2 });
+      const dataUrl = await toPng(cardRef.current, {
+        cacheBust: true,
+        width: card.width,
+        height: card.height
+      });
       const link = document.createElement("a");
-      link.download = `name-rarity-${size}.png`;
+      const slug =
+        result.display
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-|-$/g, "") || "name";
+      link.download = `${slug}-rarity-${size}.png`;
       link.href = dataUrl;
       link.click();
     } finally {
@@ -33,84 +55,88 @@ export function ShareCard({ score }: ShareCardProps) {
     }
   };
 
-  const cardSize = CARD_SIZES[size];
-  const scoreValue = score.score ?? 0;
+  const parts = [result.first, result.last].filter(
+    (p): p is PartResult => p !== null
+  );
 
   return (
     <div className="flex w-full flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="label-text">Share card</div>
-        <div className="flex items-center gap-2">
-          {Object.entries(CARD_SIZES).map(([key, value]) => (
+        <h2 className="label-text">Share card</h2>
+        <div
+          className="flex flex-wrap items-center gap-2"
+          role="group"
+          aria-label="Card size"
+        >
+          {(Object.keys(CARD_SIZES) as Size[]).map((key) => (
             <button
               key={key}
               type="button"
-              onClick={() => setSize(key as keyof typeof CARD_SIZES)}
-              className={`rounded-full border px-4 py-2 text-[0.65rem] uppercase tracking-[0.25em] transition ${
-                size === key
-                  ? "border-aurora/60 bg-aurora/10 text-glacier"
-                  : "border-white/10 text-mist/70 hover:border-white/30 hover:text-mist"
-              }`}
+              aria-pressed={size === key}
+              onClick={() => setSize(key)}
+              className={`button-quiet ${size === key ? "border-aurora/60 text-glacier" : ""}`}
             >
-              {value.label}
+              {CARD_SIZES[key].label}
             </button>
           ))}
           <button
             type="button"
             onClick={handleDownload}
             className="button-primary"
-            aria-label="Download share card"
             disabled={isDownloading}
           >
-            {isDownloading ? "Preparing" : "Download"}
+            {isDownloading ? "Preparing…" : "Download PNG"}
           </button>
         </div>
       </div>
-      <div className="w-full overflow-auto">
+      <div ref={frameRef} className="w-full">
         <div
-          ref={cardRef}
-          className={`share-card relative flex flex-col justify-between overflow-hidden rounded-card border border-white/10 text-glacier ${
-            size === "wide" ? "p-10" : "p-12"
-          }`}
-          style={{ width: cardSize.width, height: cardSize.height }}
+          style={{ width: card.width * scale, height: card.height * scale }}
+          className="overflow-hidden rounded-card"
         >
-          <div className="share-card-noise pointer-events-none absolute inset-0 opacity-40" />
-          <div className="pointer-events-none absolute inset-0 bg-white/5 opacity-30" />
-          <div className="relative flex items-center justify-between">
-            <span className="text-[0.65rem] font-semibold uppercase tracking-[0.4em] text-mist/80">
-              Name Rarity
-            </span>
-            <span className="text-[0.65rem] font-semibold uppercase tracking-[0.4em] text-mist/80">
-              {score.label}
-            </span>
-          </div>
-          <div className="relative flex flex-col gap-6">
-            <div>
-              <p className="font-mono text-4xl uppercase tracking-[0.18em] text-glacier leading-tight">
-                {score.parts.display || "Your Name"}
-              </p>
-              <p className="mt-3 text-sm text-mist/80">Confidence: {score.confidence}</p>
-            </div>
-            <RarityMeter score={scoreValue} compact />
-            <div className="grid gap-3 text-sm text-mist/80 sm:grid-cols-2">
-              {score.breakdown.map((part, index) => {
-                const label = ["first", "middle", "last", "suffix"][index] ?? "part";
-                return (
-                <div
-                  key={`${part.token}-${part.source}-${index}`}
-                  className="rounded-2xl border border-white/10 bg-white/5 p-4"
+          <div
+            style={{
+              transform: `scale(${scale})`,
+              transformOrigin: "top left",
+              width: card.width
+            }}
+          >
+            <div
+              ref={cardRef}
+              className="share-card relative flex flex-col justify-between overflow-hidden border border-white/10 p-16"
+              style={{ width: card.width, height: card.height }}
+            >
+              <div className="flex items-center justify-between text-xl font-semibold uppercase tracking-[0.35em] text-mist">
+                <span>Name rarity</span>
+                <span>{LABEL_TEXT[result.label]}</span>
+              </div>
+              <div className="flex flex-col gap-8">
+                <p
+                  className={`break-words font-semibold leading-tight ${size === "wide" ? "text-6xl" : "text-7xl"}`}
                 >
-                  <div className="flex items-center justify-between text-[0.6rem] uppercase tracking-[0.25em]">
-                    <span>{label}</span>
-                    <span>{part.rarityTier}</span>
-                  </div>
-                  <div className="mt-2 font-mono text-sm text-glacier">{part.token || "—"}</div>
-                </div>
-              );
-              })}
+                  {result.display}
+                </p>
+                <p className="text-[10rem] font-semibold tabular-nums leading-none">
+                  {result.score}
+                  <span className="text-5xl text-mist">/100</span>
+                </p>
+                <RarityMeter score={result.score ?? 0} compact />
+              </div>
+              <div className="flex items-end justify-between gap-6 text-2xl text-mist">
+                <span>
+                  {result.estimate
+                    ? `${formatPeople(result.estimate.people)} in the US`
+                    : parts
+                        .map(
+                          (p) =>
+                            `${KIND_TEXT[p.kind]}: ${LABEL_TEXT[p.label].toLowerCase()}`
+                        )
+                        .join(" · ")}
+                </span>
+                <span>SSA + Census data</span>
+              </div>
             </div>
           </div>
-          <div className="relative text-xs text-mist/70">{score.estimate}</div>
         </div>
       </div>
     </div>
