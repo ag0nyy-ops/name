@@ -1,24 +1,24 @@
 import type { Config } from "tailwindcss";
 
+const themed = (name: string) => `rgb(var(--c-${name}) / <alpha-value>)`;
+
 const config: Config = {
   darkMode: ["class"],
-  content: [
-    "./app/**/*.{ts,tsx}",
-    "./components/**/*.{ts,tsx}",
-    "./lib/**/*.{ts,tsx}"
-  ],
+  content: ["./app/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}", "./lib/**/*.{ts,tsx}"],
   theme: {
     extend: {
       colors: {
-        obsidian: "#0a0a0b",
-        graphite: "#141416",
-        mist: "#a1a1aa",
-        glacier: "#f5f5f7",
-        aurora: "#5fd3ff"
+        obsidian: themed("obsidian"),
+        graphite: themed("graphite"),
+        mist: themed("mist"),
+        glacier: themed("glacier"),
+        aurora: themed("aurora"),
+        line: themed("line"),
+        caution: themed("caution")
       },
       boxShadow: {
-        glow: "0 0 28px rgba(95, 211, 255, 0.25)",
-        soft: "0 28px 70px rgba(0, 0, 0, 0.55)"
+        glow: "0 0 28px rgb(var(--c-aurora) / 0.25)",
+        soft: "0 28px 70px rgb(0 0 0 / var(--shadow-strength))"
       },
       borderRadius: {
         card: "22px"
