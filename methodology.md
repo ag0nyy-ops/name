@@ -1,89 +1,70 @@
-# Methodology
+# Methodology (model 4.0)
 
-## Data sources
+The score comes from one number: how many people in the US you'd expect to have a given first and last name. The engine is in `engine/src/score.rs`; this file describes what it does.
 
-- **SSA baby names**: Aggregated counts across all available years (1880–latest) from the US Social Security Administration baby name datasets. This is used for **first** and **middle** name frequency tiers.
-- **US Census surnames**: The official US Census 2010 surnames list (ranked, names with ≥100 occurrences). This is used for **last** name frequency tiers.
+## Data
 
-The application is US‑biased because both datasets are US‑only. For other regions, results may be misleading.
+- **SSA baby names**: national counts for every year from 1880 on, summed. Used for first and middle names. SSA omits names given to fewer than 5 babies in a year.
+- **2010 Census surnames**: every surname held by at least 100 people. Used for last names.
 
-## Data generation & licensing
+Both are US-only and store names in lowercase a–z with no accents, spaces, hyphens or apostrophes. `scripts/build_data.py` rebuilds `public/data/*.json` from the official files.
 
-A build script downloads official sources, aggregates counts, and stores compact frequency tables in `data/generated/` so runtime stays offline:
+The SSA totals used here aren't split by sex, so a name's count covers everyone given it. "Unisex" names need no special handling beyond that; a name that works as both a first name and a surname is scored from whichever slot it's in.
 
-```bash
-python3 scripts/build_data.py
+## Parsing
+
+- First word = first name, last word = last name, words in between = middle names. `Last, First` is flipped.
+- Titles (Dr, Mr, Mrs, Ms, Prof…) are dropped. Suffixes (Jr, Sr, II–X) are kept for display but don't change the count.
+- Particles before the last word (de, la, van, der, von, di, du, le, st…) join the surname: *Ana de la Cruz* → `delacruz`.
+- Matching keys strip accents (Unicode decomposition), hyphens and apostrophes: *José* → `jose`, *Jean-Luc* → `jeanluc`, *O'Brien* → `obrien`.
+- Digits and symbols are ignored and lower confidence. Non-Latin scripts get no score.
+- Single-letter middle names are initials and are left out of the estimate.
+
+## Looking up a part
+
+In order:
+
+1. **Exact**: the key is in the list.
+2. **Special**: a hand-checked entry in `data/specialCases.json`.
+3. **Core**: a particle surname not listed whole falls back to its final word (overcounts, so confidence drops).
+4. **Parts**: a hyphenated name not listed whole, but each half is: real, but below the cutoff.
+5. **Missing**: not listed.
+
+Anything not found exactly is counted at half the list's cutoff (2.5 for SSA, 50 for Census), and the estimate is marked as an upper end.
+
+For missing names the engine also:
+
+- checks whether the input looks like it isn't a name (unusually long, a letter tripled, no vowels, almost all consonants, a keyboard run). Listed names are never checked, so a real name is never flagged;
+- searches for a sound-alike listed spelling (a Double Metaphone variant plus edit distance), e.g. *Braydyn* → *Brayden*. This only explains the result;
+- notes when the name appears in the other list (a surname used as a first name, or the reverse).
+
+## Estimate and score
+
+```
+people = 335,000,000 × (first count / SSA total) × (last count / Census total)
+score  = clamp((log10(10,000) − log10(people)) / 7 × 100, 0, 100)
 ```
 
-Only compact, derived frequency tables are committed (no raw CSV/ZIP redistribution). If the generated tables are empty, rerun the script with network access to populate them. Review source licensing and redistribution guidance at the SSA and Census websites.
+This assumes first and last names are independent. Real names cluster by culture and era, so treat the estimate as an order of magnitude. Middle names produce a separate, narrower estimate and don't change the score.
 
-## Parsing & normalization
+| Score | Label |
+| --- | --- |
+| 0–19 | common |
+| 20–39 | uncommon |
+| 40–59 | rare |
+| 60–79 | very rare |
+| 80–100 | extreme |
 
-- Lowercase, trim, and collapse whitespace.
-- Strip punctuation except hyphens in last names.
-- Detect suffixes: `jr`, `sr`, and roman numerals `i`–`xx`.
-- Split: first token = first name; last token (after suffix removal) = last name; middle = everything in between.
+A single name gets its own score against its list: the list's most common name is 0 and a count of 1 is 100.
 
-## Tier mapping (percentiles)
+## Confidence
 
-Tiers are derived from percentile bins of the frequency tables (by rank):
+- **High**: both names found.
+- **Medium**: a part is missing, core-only or hyphen-split; a middle name looks unusual; or only one name was given.
+- **Low**: a missing part looks like it isn't a name, or the input had characters that were ignored.
 
-- Tier 2: top 1%
-- Tier 3: 1–5%
-- Tier 4: 5–15%
-- Tier 5: 15–35%
-- Tier 6: 35–65%
-- Tier 7: 65–85%
-- Tier 8: 85–95%
-- Tier 9: 95–99%
-- Tier 10: bottom 1%
+If neither name is in the data, the result is "unknown" with no score.
 
-Tier 1 is reserved for missing parts (e.g., no middle, no suffix), not for “common.”
+## Tests
 
-## Confidence rules
-
-- **High**: part exists and is found in the relevant dataset or a special‑case override.
-- **Medium**: found but combined edge cases (multi‑token middle or hyphenated last from parts).
-- **Low**: not found in dataset, only one token input, or missing last name.
-
-Overall confidence starts at **medium**, downgrades with missing/unknown parts, and upgrades to **high** only when both first and last are found and there are at least two tokens.
-
-## Structural modifiers
-
-Small nudges only:
-
-- Stylized first‑name spelling (e.g., `z` ending or unusual `y` substitution): +0.5 tier max.
-- Roman numeral suffix: +0.5 tier max.
-- Hyphenated last name: baseline tier ≥ 7; if no exact match, split and combine parts (tier = max(part tiers) + 1, capped at 10).
-
-## Caps & label rules
-
-Hard caps prevent false precision:
-
-- Single token input: score ≤ 45, label ≤ **uncommon**, confidence **low**.
-- Missing last name: score ≤ 60, label ≤ **rare**.
-- “Very rare” requires at least first + last.
-- “Extreme” requires last tier ≥ 9 or a special‑case last/full match.
-
-## Overall score
-
-Each part contributes a rarity weight based on its tier. The weights are multiplied and then log‑scaled into a 0–100 score. The score is mapped to labels:
-
-- 0–20 **common**
-- 21–40 **uncommon**
-- 41–60 **rare**
-- 61–80 **very rare**
-- 81–100 **extreme**
-
-Per-name rarity is based on how many people carry the name (log of the SSA/Census count), not its rank among distinct names. A rough US headcount is shown only at high confidence (first share × surname share × ~335M, assuming independence); it is an estimate, not a statistic.
-
-## Special cases
-
-Overrides live in `data/specialCases.json` with the following keys:
-
-- `fullExact`
-- `firstExact`
-- `middleExact`
-- `lastExact`
-
-These overrides can set tiers/confidence for specific inputs and are explicitly documented here to avoid hidden “magic.”
+`cargo test` in `engine/` covers parsing, the phonetic index, table loading, scoring on a small fixture (hyphens, accents, apostrophes, particles, cutoffs, initials, special cases, random input) and on the real tables. `npm test` runs the compiled wasm and renders every kind of result.

@@ -1,12 +1,8 @@
 {
-  "firstExact": {},
-  "middleExact": {},
-  "lastExact": {
+  "first": {},
+  "last": {
     "ayde-hueg": {
-      "tier": 10,
-      "confidence": "high",
-      "note": "extremely rare inherited hyphenated surname"
+      "note": "Hand-checked: an inherited hyphenated surname that is not in the Census list."
     }
-  },
-  "fullExact": {}
+  }
 }

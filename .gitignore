@@ -6,3 +6,7 @@ names/
 *.log
 .env*
 __pycache__/
+# Rust engine build output (npm run build:engine)
+engine/target/
+lib/wasm/
+tsconfig.tsbuildinfo
