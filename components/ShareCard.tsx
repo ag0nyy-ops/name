@@ -1,3 +1,4 @@
+// jay. — © 2026 Jay — https://ag0nyy-ops.github.io/ — source viewable, not reusable by others (LICENSE)
 "use client";
 
 import { toPng } from "html-to-image";
@@ -60,9 +61,9 @@ export function ShareCard({ result }: { result: NameResult }) {
   );
 
   return (
-    <div className="flex w-full flex-col gap-4">
+    <div className="flex w-full flex-col gap-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="label-text">Share card</h2>
+        <h2 className="label">Exhibit / share card</h2>
         <div
           className="flex flex-wrap items-center gap-2"
           role="group"
@@ -74,7 +75,7 @@ export function ShareCard({ result }: { result: NameResult }) {
               type="button"
               aria-pressed={size === key}
               onClick={() => setSize(key)}
-              className={`button-quiet ${size === key ? "border-aurora/60 text-glacier" : ""}`}
+              className="btn btn--quiet"
             >
               {CARD_SIZES[key].label}
             </button>
@@ -82,7 +83,7 @@ export function ShareCard({ result }: { result: NameResult }) {
           <button
             type="button"
             onClick={handleDownload}
-            className="button-primary"
+            className="btn btn--solid"
             disabled={isDownloading}
           >
             {isDownloading ? "Preparing…" : "Download PNG"}
@@ -92,7 +93,7 @@ export function ShareCard({ result }: { result: NameResult }) {
       <div ref={frameRef} className="w-full">
         <div
           style={{ width: card.width * scale, height: card.height * scale }}
-          className="overflow-hidden rounded-card"
+          className="overflow-hidden"
         >
           <div
             style={{
@@ -103,26 +104,31 @@ export function ShareCard({ result }: { result: NameResult }) {
           >
             <div
               ref={cardRef}
-              className="share-card relative flex flex-col justify-between overflow-hidden border border-white/10 p-16"
+              className={`share-card flex flex-col justify-between overflow-hidden ${size === "wide" ? "p-14" : "p-20"}`}
               style={{ width: card.width, height: card.height }}
             >
-              <div className="flex items-center justify-between text-xl font-semibold uppercase tracking-[0.35em] text-mist">
-                <span>Name rarity</span>
-                <span>{LABEL_TEXT[result.label]}</span>
+              <div className="flex items-center justify-between gap-6">
+                <span className="label text-2xl">File / name rarity</span>
+                <span className="stamp">{LABEL_TEXT[result.label]}</span>
               </div>
-              <div className="flex flex-col gap-8">
+              <div className={`flex flex-col ${size === "wide" ? "gap-6" : "gap-10"}`}>
                 <p
-                  className={`break-words font-semibold leading-tight ${size === "wide" ? "text-6xl" : "text-7xl"}`}
+                  className="share-card__name"
+                  style={{
+                    fontSize: nameSize(result.display, size === "wide" ? 7 : 9)
+                  }}
                 >
                   {result.display}
                 </p>
-                <p className="text-[10rem] font-semibold tabular-nums leading-none">
+                <p
+                  className={`score-display ${size === "wide" ? "text-[9rem]" : "text-[13rem]"}`}
+                >
                   {result.score}
-                  <span className="text-5xl text-mist">/100</span>
+                  <span className="score-display__of">/100</span>
                 </p>
-                <RarityMeter score={result.score ?? 0} compact />
+                <RarityMeter score={result.score ?? 0} />
               </div>
-              <div className="flex items-end justify-between gap-6 text-2xl text-mist">
+              <div className="flex items-end justify-between gap-6 font-mono text-2xl uppercase tracking-[0.14em] text-muted">
                 <span>
                   {result.estimate
                     ? `${formatPeople(result.estimate.people)} in the US`
@@ -141,4 +147,10 @@ export function ShareCard({ result }: { result: NameResult }) {
       </div>
     </div>
   );
+}
+
+// Long names shrink so they stay on the card; short ones fill it.
+function nameSize(name: string, maxRem: number) {
+  const length = Math.max(name.length, 1);
+  return `${Math.max(3.2, Math.min(maxRem, 46 / length))}rem`;
 }
