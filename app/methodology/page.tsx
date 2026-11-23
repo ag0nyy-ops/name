@@ -1,21 +1,22 @@
+// jay. — © 2026 Jay — https://ag0nyy-ops.github.io/ — source viewable, not reusable by others (LICENSE)
 import type { Metadata } from "next";
+import { FileHeader } from "../../components/FileHeader";
 import Link from "next/link";
 import { MODEL_VERSION } from "../../lib/engine";
 
-export const metadata: Metadata = { title: "Methodology · whatsmynamerarity" };
+export const metadata: Metadata = { title: "Methodology · Name rarity" };
 
 export default function MethodologyPage() {
   return (
-    <section className="glass-card flex flex-col gap-6 p-5 sm:p-8 md:p-12">
-      <div className="flex flex-col gap-3">
-        <p className="label-text">Methodology · model {MODEL_VERSION}</p>
-        <h1 className="section-title">One estimate, shown in full.</h1>
-        <p className="section-subtitle">
+    <section className="file enter">
+      <FileHeader number="02" label={`Methodology · model ${MODEL_VERSION}`} title="Methodology">
+        <p className="lede">
+          <strong className="font-medium text-fg">One estimate, shown in full.</strong>{" "}
           The score comes from a single number: how many people in the US
           you&apos;d expect to have your first and last name. Everything below
           is visible in each result.
         </p>
-      </div>
+      </FileHeader>
       <div className="prose-block">
         <h2>1. Reading the name</h2>
         <ul>

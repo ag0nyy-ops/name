@@ -1,53 +1,34 @@
+// jay. — © 2026 Jay — https://ag0nyy-ops.github.io/ — source viewable, not reusable by others (LICENSE)
 import type { Config } from "tailwindcss";
 
-const themed = (name: string) => `rgb(var(--c-${name}) / <alpha-value>)`;
-
+// Tailwind only handles layout here. Colours, type and pieces live in app/globals.css,
+// built on the dossier tokens: black and white, every grey mixed from --fg and --bg.
 const config: Config = {
-  darkMode: ["class"],
   content: ["./app/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}", "./lib/**/*.{ts,tsx}"],
   theme: {
     extend: {
       colors: {
-        obsidian: themed("obsidian"),
-        graphite: themed("graphite"),
-        mist: themed("mist"),
-        glacier: themed("glacier"),
-        aurora: themed("aurora"),
-        line: themed("line"),
-        caution: themed("caution")
-      },
-      boxShadow: {
-        glow: "0 0 28px rgb(var(--c-aurora) / 0.25)",
-        soft: "0 28px 70px rgb(0 0 0 / var(--shadow-strength))"
-      },
-      borderRadius: {
-        card: "22px"
+        bg: "var(--bg)",
+        "bg-2": "var(--bg-2)",
+        fg: "var(--fg)",
+        muted: "var(--muted)",
+        line: "var(--line)",
+        "line-strong": "var(--line-strong)"
       },
       fontFamily: {
-        sans: [
-          "-apple-system",
-          "BlinkMacSystemFont",
-          "SF Pro Text",
-          "SF Pro Display",
-          "Segoe UI",
-          "Roboto",
-          "Helvetica",
-          "Arial",
-          "sans-serif"
-        ],
-        mono: [
-          "SFMono-Regular",
-          "ui-monospace",
-          "SF Mono",
-          "Menlo",
-          "Monaco",
-          "Consolas",
-          "Liberation Mono",
-          "monospace"
-        ]
+        goth: ["var(--goth)"],
+        mono: ["var(--mono)"],
+        sans: ["var(--sans)"]
+      },
+      maxWidth: {
+        page: "var(--max)"
+      },
+      borderRadius: {
+        none: "0"
       },
       transitionTimingFunction: {
-        "out-smooth": "cubic-bezier(0.22, 1, 0.36, 1)"
+        liquid: "cubic-bezier(.22, 1, .36, 1)",
+        ink: "cubic-bezier(.65, 0, .35, 1)"
       }
     }
   },

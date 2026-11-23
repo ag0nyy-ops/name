@@ -1,35 +1,23 @@
+// jay. — © 2026 Jay — https://ag0nyy-ops.github.io/ — source viewable, not reusable by others (LICENSE)
 import Link from "next/link";
+import { EyeMark } from "./EyeMark";
 import { SiteNav } from "./SiteNav";
-import { ThemeToggle } from "./ThemeToggle";
 
 export function SiteHeader() {
   return (
-    <header className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-4 pt-6 sm:flex-row sm:items-center sm:justify-between sm:px-6 md:px-10">
+    <header className="site-head">
       <a
         href="#main"
-        className="sr-only-focusable button-quiet absolute left-4 top-2 z-50"
+        className="sr-only-focusable btn btn--solid absolute left-4 top-2 z-[60]"
       >
         Skip to content
       </a>
-      <div className="flex items-center justify-between gap-3">
-        <Link href="/" className="flex items-center gap-3">
-          <span
-            className="h-2.5 w-2.5 rounded-full bg-aurora/80 shadow-glow"
-            aria-hidden="true"
-          />
-          <span className="text-xs font-semibold uppercase tracking-[0.3em] text-mist">
-            whatsmynamerarity
-          </span>
+      <div className="page flex flex-col gap-1 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <Link href="/" className="brand" aria-label="Name rarity, home">
+          <EyeMark className="brand__eye" />
+          <span className="brand__word">Name rarity</span>
         </Link>
-        <div className="sm:hidden">
-          <ThemeToggle />
-        </div>
-      </div>
-      <div className="flex items-center gap-5">
         <SiteNav />
-        <div className="hidden sm:block">
-          <ThemeToggle />
-        </div>
       </div>
     </header>
   );
