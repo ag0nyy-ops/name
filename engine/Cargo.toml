@@ -2,7 +2,7 @@
 name = "name-rarity-engine"
 version = "0.4.0"
 edition = "2021"
-license = "MIT"
+license-file = "../LICENSE"
 description = "Name rarity scoring from SSA baby names and US Census surnames, compiled to WebAssembly"
 repository = "https://github.com/ag0nyy-ops/name"
 publish = false
