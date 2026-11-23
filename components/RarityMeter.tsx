@@ -1,52 +1,39 @@
-"use client";
+// jay. — © 2026 Jay — https://ag0nyy-ops.github.io/ — source viewable, not reusable by others (LICENSE)
 
-import { motion, useReducedMotion } from "framer-motion";
-
+// Five boxed bands with a solid fill. The fill grows in on CSS (meter__fill) and
+// glides to a new score on a transition; reduced motion turns both off.
 type RarityMeterProps = {
   score: number;
-  compact?: boolean;
 };
 
 const BANDS = ["common", "uncommon", "rare", "very rare", "extreme"];
 
-export function RarityMeter({ score, compact = false }: RarityMeterProps) {
-  const reduceMotion = useReducedMotion();
+export function RarityMeter({ score }: RarityMeterProps) {
+  const band = Math.min(4, Math.floor(score / 20));
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col">
       <div
-        className="meter-shell"
+        className="meter"
         role="meter"
         aria-label="Rarity score"
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={score}
       >
-        <motion.div
-          className="h-full rounded-full bg-gradient-to-r from-aurora/30 via-aurora/80 to-glacier"
-          initial={{ width: 0 }}
-          animate={{ width: `${score}%` }}
-          transition={{
-            duration: reduceMotion ? 0 : 0.6,
-            ease: [0.22, 1, 0.36, 1]
-          }}
+        <div
+          className="meter__fill"
+          style={{ transform: `scaleX(${score / 100})` }}
         />
-        <div className="meter-ticks">
+        <div className="meter__ticks" aria-hidden="true">
           {[20, 40, 60, 80].map((tick) => (
             <span key={tick} style={{ left: `${tick}%` }} />
           ))}
         </div>
       </div>
-      <div
-        className={`grid grid-cols-5 uppercase text-mist ${
-          compact
-            ? "text-lg tracking-[0.2em]"
-            : "text-[0.55rem] tracking-[0.15em] sm:tracking-[0.25em]"
-        }`}
-        aria-hidden="true"
-      >
-        {BANDS.map((band) => (
-          <span key={band} className="text-center">
-            {band}
+      <div className="meter__bands" aria-hidden="true">
+        {BANDS.map((name, index) => (
+          <span key={name} data-on={index === band}>
+            {name}
           </span>
         ))}
       </div>

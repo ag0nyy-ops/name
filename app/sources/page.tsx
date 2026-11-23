@@ -1,10 +1,12 @@
+// jay. — © 2026 Jay — https://ag0nyy-ops.github.io/ — source viewable, not reusable by others (LICENSE)
 import type { Metadata } from "next";
+import { FileHeader } from "../../components/FileHeader";
 import Link from "next/link";
 import specialCases from "../../data/specialCases.json";
 import { DATASETS } from "../../lib/engine";
 import { formatCount } from "../../lib/format";
 
-export const metadata: Metadata = { title: "Sources · whatsmynamerarity" };
+export const metadata: Metadata = { title: "Sources · Name rarity" };
 
 function formatDate(value: string | null) {
   if (!value) return "unknown";
@@ -24,16 +26,15 @@ export default function SourcesPage() {
     Object.keys(specialCases.first).length +
     Object.keys(specialCases.last).length;
   return (
-    <section className="glass-card flex flex-col gap-6 p-5 sm:p-8 md:p-12">
-      <div className="flex flex-col gap-3">
-        <p className="label-text">Sources</p>
-        <h1 className="section-title">Where the numbers come from.</h1>
-        <p className="section-subtitle">
+    <section className="file enter">
+      <FileHeader number="03" label="Sources" title="Sources">
+        <p className="lede">
+          <strong className="font-medium text-fg">Where the numbers come from.</strong>{" "}
           Two US government datasets, both public domain. They&apos;re
           downloaded ahead of time and served as static files, so the site makes
           no calls to anyone while you use it.
         </p>
-      </div>
+      </FileHeader>
       <div className="prose-block">
         <h2>First and middle names: SSA baby names</h2>
         <p>

@@ -23,7 +23,8 @@ Names below a list's cutoff (5 babies a year, 100 people) aren't thrown out: the
 | --- | --- |
 | `engine/` | Rust crate: parsing, lookups, phonetic matching, scoring. Builds to wasm with `wasm-pack`. |
 | `lib/engine.ts` | Loads the wasm and the two tables in the browser; TypeScript types for results. |
-| `components/`, `app/` | Next.js UI and pages. |
+| `components/`, `app/` | Next.js UI and pages, styled as a case file (black and white, blackletter titles, mono labels). |
+| `styles/` | Self-hosted fonts (SIL OFL 1.1, licence texts included) and the film-grain texture. |
 | `public/data/` | Compact SSA and Census tables (`{name: count}`, most common first). |
 | `data/specialCases.json` | Hand-checked names the lists can't confirm, each with a note shown in the UI. |
 | `scripts/build_data.py` | Downloads the source data and rebuilds the tables. |
@@ -66,4 +67,4 @@ Source-available, view and learn only. See [LICENSE](LICENSE). Name data comes f
 
 ## Privacy
 
-No analytics, no tracking, and no user data storage. Theme preference is stored in localStorage only.
+No analytics, no tracking, no cookies and nothing saved in the browser. Fonts and images are self-hosted.

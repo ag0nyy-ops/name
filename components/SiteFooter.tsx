@@ -1,3 +1,4 @@
+// jay. — © 2026 Jay — https://ag0nyy-ops.github.io/ — source viewable, not reusable by others (LICENSE)
 import Link from "next/link";
 import { DATASETS, MODEL_VERSION } from "../lib/engine";
 
@@ -15,24 +16,43 @@ function formatDate(value: string | null) {
 
 export function SiteFooter() {
   return (
-    <footer className="mx-auto w-full max-w-6xl px-4 pb-12 pt-6 text-xs text-mist sm:px-6 md:px-10">
-      <div className="flex flex-col gap-2 border-t border-line/10 pt-6">
-        <span>
-          Estimates, not lookups: this never searches for real people, and names
-          you type never leave your browser.
-        </span>
-        <span>
-          Scoring model {MODEL_VERSION} · data built{" "}
-          {formatDate(DATASETS.first.generatedAt)} from{" "}
-          <Link className="text-link" href="/sources/">
-            SSA and Census public data
-          </Link>{" "}
-          ·{" "}
-          <Link className="text-link" href="/methodology/">
-            how it works
-          </Link>
-        </span>
-        <span>whatsmynamerarity · no tracking, no cookies.</span>
+    <footer className="site-foot mt-24">
+      <div className="page flex flex-col gap-6 pb-12 pt-10">
+        <p className="site-foot__word hollow" aria-hidden="true">
+          Name rarity
+        </p>
+        <div className="grid gap-6 text-sm text-muted sm:grid-cols-3">
+          <div className="flex flex-col gap-2">
+            <p className="label">Terms of the file</p>
+            <p>
+              Estimates, not lookups. This never searches for real people, and
+              names you type never leave your browser.
+            </p>
+          </div>
+          <div className="flex flex-col gap-2">
+            <p className="label">Model {MODEL_VERSION}</p>
+            <p>
+              Data built {formatDate(DATASETS.first.generatedAt)} from{" "}
+              <Link className="text-link" href="/sources/">
+                SSA and Census public data
+              </Link>
+              . See{" "}
+              <Link className="text-link" href="/methodology/">
+                how it works
+              </Link>
+              .
+            </p>
+          </div>
+          <div className="flex flex-col gap-2">
+            <p className="label">Filed by</p>
+            <p>
+              <a className="text-link" href="https://ag0nyy-ops.github.io/">
+                Jay
+              </a>
+              . No tracking, no cookies.
+            </p>
+          </div>
+        </div>
       </div>
     </footer>
   );
