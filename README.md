@@ -1,3 +1,5 @@
+> **License:** source-available, view and learn only. Not open source. See [LICENSE](LICENSE) before cloning, forking or using this code.
+
 # Name Rarity
 
 A privacy-first, Apple-inspired name rarity calculator. Everything runs locally in your browser — no tracking, no cookies, no external APIs.
@@ -46,7 +48,7 @@ The site is fully static (no server, no env vars). Import the repo into Vercel o
 
 ## License
 
-MIT. Name data comes from the US SSA and Census Bureau (public domain US government data); see `/sources`.
+Source-available, view and learn only. See [LICENSE](LICENSE). The name data comes from the US SSA and Census Bureau (public domain US government data) and is not covered by it; see `/sources`.
 
 ## Scripts
 
