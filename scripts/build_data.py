@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import csv
 import json
-import math
 import os
 import pathlib
 import tempfile
@@ -10,12 +9,11 @@ import zipfile
 from datetime import datetime, timezone
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-DATA_DIR = ROOT / "data" / "generated"
+DATA_DIR = ROOT / "public" / "data"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 SSA_URL = "https://www.ssa.gov/oact/babynames/names.zip"
 CENSUS_URL = "https://www2.census.gov/topics/genealogy/2010surnames/names.zip"
-PERCENTILE_SCALE = 10000
 
 
 def download(url: str, dest: pathlib.Path) -> None:
@@ -110,33 +108,21 @@ def build_census() -> dict:
 
 
 def build_table(counts: dict[str, int], source: str) -> dict:
-    """Build a frequency table.
+    """Build a compact frequency table: {name: count}, most common first.
 
-    `percentile` is a rarity index on a 0..PERCENTILE_SCALE scale (0 = most
-    common, SCALE = rarest), based on log10(count) between the most and least
-    common names. It is NOT a rank among distinct names: rank-based values
-    made names shared by only a few thousand people look "common".
+    Keys are lowercase a-z only (the SSA and Census files already strip
+    accents, spaces, hyphens and apostrophes). Rank is the position in the
+    object, so the order matters.
     """
     counts = {name: count for name, count in counts.items() if name != "all other names"}
-    sorted_items = sorted(counts.items(), key=lambda item: item[1], reverse=True)
-    total_names = len(sorted_items)
-    total_count = sum(counts.values())
-    names: dict[str, dict[str, int]] = {}
-    hi = math.log10(sorted_items[0][1])
-    lo = math.log10(max(1, sorted_items[-1][1]))
-    span = max(hi - lo, 1e-9)
-
-    for name, count in sorted_items:
-        percentile = round(((hi - math.log10(count)) / span) * PERCENTILE_SCALE)
-        names[name] = {"count": count, "percentile": percentile}
+    sorted_items = sorted(counts.items(), key=lambda item: (-item[1], item[0]))
 
     return {
         "source": source,
         "generatedAt": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "totalNames": total_names,
-        "totalCount": total_count,
-        "percentileScale": PERCENTILE_SCALE,
-        "names": names,
+        "totalNames": len(sorted_items),
+        "totalCount": sum(counts.values()),
+        "names": dict(sorted_items),
     }
 
 
@@ -144,16 +130,27 @@ def main() -> None:
     ssa = build_ssa()
     census = build_census()
 
-    ssa_path = DATA_DIR / "ssa_first_names.json"
-    census_path = DATA_DIR / "census_surnames.json"
+    ssa_path = DATA_DIR / "ssa-first-names.json"
+    census_path = DATA_DIR / "census-surnames.json"
 
     with open(ssa_path, "w", encoding="utf-8") as file:
-        json.dump(ssa, file, ensure_ascii=False)
+        json.dump(ssa, file, ensure_ascii=False, separators=(",", ":"))
     with open(census_path, "w", encoding="utf-8") as file:
-        json.dump(census, file, ensure_ascii=False)
+        json.dump(census, file, ensure_ascii=False, separators=(",", ":"))
+
+    # Small summary the site's static pages read, so they never import the big tables.
+    meta_path = ROOT / "data" / "datasets.json"
+    meta = {
+        key: {k: table[k] for k in ("source", "generatedAt", "totalNames", "totalCount")}
+        for key, table in (("first", ssa), ("last", census))
+    }
+    with open(meta_path, "w", encoding="utf-8") as file:
+        json.dump(meta, file, indent=2)
+        file.write("\n")
 
     print(f"Wrote {ssa_path}")
     print(f"Wrote {census_path}")
+    print(f"Wrote {meta_path}")
 
 
 if __name__ == "__main__":

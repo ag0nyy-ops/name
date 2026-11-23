@@ -1,15 +1,16 @@
 {
   "name": "name-rarity",
-  "version": "0.1.0",
+  "version": "0.4.0",
   "private": true,
   "type": "module",
   "scripts": {
+    "build:engine": "wasm-pack build engine --target web --release --out-dir ../lib/wasm --out-name engine --no-pack",
     "dev": "next dev",
     "build": "next build",
     "build:data": "python3 scripts/build_data.py",
-    "start": "next start",
     "lint": "next lint",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:engine": "cargo test --manifest-path engine/Cargo.toml"
   },
   "dependencies": {
     "framer-motion": "^11.3.11",
@@ -36,7 +37,7 @@
     "vitest": "^2.0.5"
   },
   "license": "SEE LICENSE IN LICENSE",
-  "description": "Privacy-first name rarity calculator using SSA and US Census data",
+  "description": "Privacy-first name rarity calculator using SSA and US Census data, scored by a Rust engine compiled to WebAssembly",
   "engines": {
     "node": ">=18.18"
   },
