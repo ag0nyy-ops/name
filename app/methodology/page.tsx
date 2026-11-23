@@ -1,117 +1,133 @@
+import type { Metadata } from "next";
 import Link from "next/link";
+import { MODEL_VERSION } from "../../lib/engine";
+
+export const metadata: Metadata = { title: "Methodology · whatsmynamerarity" };
 
 export default function MethodologyPage() {
   return (
-    <section className="glass-card flex flex-col gap-6 p-8 md:p-12">
+    <section className="glass-card flex flex-col gap-6 p-5 sm:p-8 md:p-12">
       <div className="flex flex-col gap-3">
-        <p className="label-text">Methodology</p>
-        <h1 className="section-title">Transparent tiers, visible limits.</h1>
+        <p className="label-text">Methodology · model {MODEL_VERSION}</p>
+        <h1 className="section-title">One estimate, shown in full.</h1>
         <p className="section-subtitle">
-          whatsmynamerarity estimates structural rarity using offline US datasets. We show confidence
-          and say “we don’t know” when data is insufficient.
+          The score comes from a single number: how many people in the US
+          you&apos;d expect to have your first and last name. Everything below
+          is visible in each result.
         </p>
       </div>
-      <div className="space-y-6 text-sm text-mist">
-        <div>
-          <h2 className="text-base font-semibold text-glacier">Input normalization</h2>
-          <ul className="mt-2 list-disc space-y-1 pl-5">
-            <li>Lowercase, trim, and collapse whitespace.</li>
-            <li>Strip punctuation except hyphen and apostrophe.</li>
-            <li>Do not strip diacritics or non-Latin scripts.</li>
-          </ul>
-        </div>
-        <div>
-          <h2 className="text-base font-semibold text-glacier">Parsing rules</h2>
-          <ul className="mt-2 list-disc space-y-1 pl-5">
-            <li>Suffixes include Jr/Sr and Roman numerals I–X (case-insensitive).</li>
-            <li>First token becomes first name, last token becomes last name, middle tokens join.</li>
-          </ul>
-        </div>
-        <div>
-          <h2 className="text-base font-semibold text-glacier">Dataset routing</h2>
-          <p className="mt-2">
-            The engine detects script and diacritics, then routes to datasets in priority order. We
-            check exact spellings first, fall back to diacritics-normalized matches, and then use a
-            phonetic (sound-based) layer to find the closest base name. The UI lists every dataset
-            checked. If no dataset matches the script, we mark the part as “not found,” lower
-            confidence, and show “we don’t know.”
-          </p>
-        </div>
-        <div>
-          <h2 className="text-base font-semibold text-glacier">Junk score (conservative)</h2>
-          <p className="mt-2">
-            We never reject real-looking names. Instead, we use a junk score to flag likely spam.
-            Hard blocks only trigger for disallowed characters, digits, excessive token length, or
-            extreme hyphen density. Warnings still produce a score, but confidence is reduced.
-          </p>
-        </div>
-        <div>
-          <h2 className="text-base font-semibold text-glacier">Rarity layers</h2>
-          <ul className="mt-2 list-disc space-y-1 pl-5">
-            <li>Base phonetic frequency: how common the name sounds, based on datasets.</li>
-            <li>Spelling deviation: a small additive boost if the spelling is uncommon for that base.</li>
-            <li>Structural modifiers: minor boosts for suffixes, hyphens, and middle names.</li>
-          </ul>
-        </div>
-        <div>
-          <h2 className="text-base font-semibold text-glacier">Combining signals</h2>
-          <p className="mt-2">
-            We combine phonetic base scores with spelling-variant boosts, then apply small structural
-            modifiers. Confidence multipliers and penalties compress the result into a 0–100 score.
-            Labels (common → extreme) are derived from score bins and adjusted for caps.
-          </p>
-        </div>
-        <div>
-          <h2 className="text-base font-semibold text-glacier">Credibility caps</h2>
-          <ul className="mt-2 list-disc space-y-1 pl-5">
-            <li>Single-token inputs cap at 45 and label ≤ uncommon.</li>
-            <li>Missing last names cap at 60 and label ≤ rare.</li>
-            <li>“Very rare” requires first + last.</li>
-            <li>“Extreme” requires last tier ≥9 or a special-case last/full match.</li>
-          </ul>
-        </div>
-        <div>
-          <h2 className="text-base font-semibold text-glacier">Special cases</h2>
-          <p className="mt-2">
-            We support explicit overrides in <code>/data/specialCases.json</code> for exact matches on
-            first, middle, last, or full names. These entries include a tier, confidence, and note so
-            the exception is always visible. See documented examples on the{" "}
-            <Link className="text-glacier underline underline-offset-4" href="/sources">
-              sources page
-            </Link>
-            .
-          </p>
-        </div>
-        <div>
-          <h2 className="text-base font-semibold text-glacier">Confidence levels</h2>
-          <p className="mt-2">
-            Confidence is high when first and last names are found in datasets, medium when partial
-            matches exist, and low when parts are missing or unknown. Spam warnings also lower
-            confidence.
-          </p>
-        </div>
-        <div>
-          <h2 className="text-base font-semibold text-glacier">Headcount estimates</h2>
-          <p className="mt-2">
-            We show a rough “how many people in the US” estimate (first-name share × surname share × ~335M, assuming the two are independent, which real names are not) only when first and last names are present, both are
-            found in datasets, confidence is high, and no caps are applied. Otherwise we explicitly
-            say we don’t have enough data.
-          </p>
-        </div>
-        <div>
-          <h2 className="text-base font-semibold text-glacier">Reason codes</h2>
-          <p className="mt-2">
-            The engine emits plain-language reasons, confidence notes, and dataset summaries so the
-            UI can show exactly why a score moved up or down.
-          </p>
-        </div>
-        <div>
-          <h2 className="text-base font-semibold text-glacier">Important disclaimer</h2>
-          <p className="mt-2">
-            Results are estimates based on the listed US datasets. We do not infer identity,
-            ethnicity, or demographics, and we never use personal lookups.
-          </p>
-        </div>
+      <div className="prose-block">
+        <h2>1. Reading the name</h2>
+        <ul>
+          <li>
+            The first word is the first name, the last word is the last name,
+            anything between is a middle name. &ldquo;Last, First&rdquo; is
+            flipped.
+          </li>
+          <li>
+            Titles (Dr, Mr, Ms…) and suffixes (Jr, Sr, II, III…) are set aside.
+            A suffix doesn&apos;t change the count.
+          </li>
+          <li>
+            Surname particles join the last name: &ldquo;Ana de la Cruz&rdquo;
+            looks up &ldquo;delacruz&rdquo;, the way the Census stores it.
+          </li>
+          <li>
+            Accents, hyphens and apostrophes are removed for matching (José →
+            jose, Jean-Luc → jeanluc, O&apos;Brien → obrien), because
+            that&apos;s how both lists store names. These matches count as
+            exact.
+          </li>
+        </ul>
+
+        <h2>2. Looking up each part</h2>
+        <p>
+          First and middle names are looked up in SSA baby names, last names in
+          the 2010 Census list. A part&apos;s share is its count divided by the
+          list&apos;s total.
+        </p>
+        <ul>
+          <li>
+            <strong>Not listed:</strong> both lists have a cutoff (5 babies a
+            year, 100 people), so a missing name is counted at half the cutoff
+            instead of being thrown out. The estimate is then marked as an upper
+            end.
+          </li>
+          <li>
+            <strong>Hyphenated, not listed whole:</strong> if each half is
+            listed, the name is real but below the cutoff, so it&apos;s counted
+            the same way.
+          </li>
+          <li>
+            <strong>Particle surname, not listed whole:</strong> falls back to
+            the final word, which overcounts, so confidence drops.
+          </li>
+          <li>
+            <strong>Rare spellings:</strong> for missing names, a sound-alike
+            search names the closest listed spelling (Braydyn → Brayden). It
+            explains the result; it doesn&apos;t change the count.
+          </li>
+          <li>
+            <strong>Unusual input:</strong> only names that aren&apos;t listed
+            are checked for keyboard runs, no vowels and similar. A listed name
+            is never flagged.
+          </li>
+        </ul>
+
+        <h2>3. The estimate</h2>
+        <p>
+          <code>people = 335 million × first-name share × last-name share</code>
+        </p>
+        <p>
+          This treats first and last names as independent. They aren&apos;t
+          quite: some pairs cluster by culture and era, so real counts can be
+          several times higher or lower. Read it as an order of magnitude.
+          Middle names get their own, narrower estimate and don&apos;t change
+          the score.
+        </p>
+
+        <h2>4. The score</h2>
+        <p>
+          A log scale from 10,000 people (0) to a thousandth of a person (100).
+          About one expected person scores 57.
+        </p>
+        <ul>
+          <li>
+            0–19 common · 20–39 uncommon · 40–59 rare · 60–79 very rare · 80–100
+            extremely rare
+          </li>
+          <li>
+            A single name gets its own score instead: its list&apos;s most
+            common name is 0 and a count of one is 100.
+          </li>
+        </ul>
+
+        <h2>5. Confidence</h2>
+        <ul>
+          <li>
+            <strong>High:</strong> both names were found.
+          </li>
+          <li>
+            <strong>Medium:</strong> one part was missing, partial or
+            hyphen-split, or only one name was entered.
+          </li>
+          <li>
+            <strong>Low:</strong> a missing part looks like it isn&apos;t a
+            name, or the input had characters that had to be ignored.
+          </li>
+        </ul>
+        <p>
+          If neither name is in the data, or the name isn&apos;t in the Latin
+          alphabet, there&apos;s no score at all.
+        </p>
+
+        <h2>Engine</h2>
+        <p>
+          The scoring engine is written in Rust and compiled to WebAssembly, so
+          the same tested code runs in your browser. It never looks anyone up:
+          it only reads the two public lists described on the{" "}
+          <Link href="/sources/">sources page</Link>.
+        </p>
       </div>
     </section>
   );

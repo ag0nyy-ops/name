@@ -1,37 +1,38 @@
 import Link from "next/link";
-import { DATASET_INFO, SCORING_MODEL_VERSION } from "../lib/rarity";
+import { DATASETS, MODEL_VERSION } from "../lib/engine";
 
 function formatDate(value: string | null) {
-  if (!value) return "not built yet";
+  if (!value) return "unknown";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "unknown";
   return date.toLocaleDateString("en-US", {
     year: "numeric",
     month: "short",
-    day: "2-digit"
+    day: "numeric",
+    timeZone: "UTC"
   });
 }
 
 export function SiteFooter() {
   return (
-    <footer className="mx-auto w-full max-w-6xl px-6 pb-12 pt-6 text-xs text-mist md:px-10">
-      <div className="flex flex-col gap-2 border-t border-white/10 pt-6">
+    <footer className="mx-auto w-full max-w-6xl px-4 pb-12 pt-6 text-xs text-mist sm:px-6 md:px-10">
+      <div className="flex flex-col gap-2 border-t border-line/10 pt-6">
         <span>
-          Guarantees: real human names are never rejected as fake. If data is insufficient, we say
-          “we don’t know.” Raw inputs are never stored.
+          Estimates, not lookups: this never searches for real people, and names
+          you type never leave your browser.
         </span>
         <span>
-          See the full methodology and caps on the{" "}
-          <Link className="text-glacier underline underline-offset-4" href="/methodology">
-            methodology page
+          Scoring model {MODEL_VERSION} · data built{" "}
+          {formatDate(DATASETS.first.generatedAt)} from{" "}
+          <Link className="text-link" href="/sources/">
+            SSA and Census public data
+          </Link>{" "}
+          ·{" "}
+          <Link className="text-link" href="/methodology/">
+            how it works
           </Link>
-          .
         </span>
-        <span>
-          Scoring model {SCORING_MODEL_VERSION} · SSA updated {formatDate(DATASET_INFO.ssa.updatedAt)} ·
-          Census updated {formatDate(DATASET_INFO.census.updatedAt)}.
-        </span>
-        <span>© 2024 whatsmynamerarity. No tracking. No cookies.</span>
+        <span>whatsmynamerarity · no tracking, no cookies.</span>
       </div>
     </footer>
   );
